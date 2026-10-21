@@ -131,7 +131,7 @@
     <string name="amount_out">الخرج</string>
     <string name="androidx_startup">androidx.startup</string>
     <string name="app_id">ca-app-pub-4681893199239723~4042617497</string>
-    <string name="app_name">محاسب سوفت</string>
+    <string name="app_name">محاسب بيه</string>
     <string name="app_name_print">برنامج دفتر الحسابات</string>
     <string name="app_path">قم بتغيير مجلد البيانات من اعدادات البرنامج...</string>
     <string name="appbar_scrolling_view_behavior">com.google.android.material.appbar.AppBarLayout$ScrollingViewBehavior</string>
