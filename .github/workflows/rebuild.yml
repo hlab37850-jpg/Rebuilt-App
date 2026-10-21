@@ -19,12 +19,11 @@ jobs:
         java-version: '17'
         distribution: 'temurin'
 
-    - name: Setup Android SDK
-      uses: android-actions/setup-android@v3
-
     - name: Install Android Build Tools
       run: |
-        sdkmanager "build-tools;34.0.0"
+        # قبول التراخيص وتثبيت أدوات البناء الإصدار 34.0.0 مباشرة من خوادم GitHub
+        yes | sudo /usr/local/lib/android/sdk/cmdline-tools/latest/bin/sdkmanager --licenses
+        sudo /usr/local/lib/android/sdk/cmdline-tools/latest/bin/sdkmanager "build-tools;34.0.0"
 
     - name: Download Apktool
       run: |
@@ -37,16 +36,17 @@ jobs:
 
     - name: Zipalign and Sign APK
       run: |
-        BUILD_TOOLS_DIR=$(ls -d $ANDROID_HOME/build-tools/34.0.0)
+        # تحديد مسار أدوات البناء
+        BUILD_TOOLS="/usr/local/lib/android/sdk/build-tools/34.0.0"
         
-        # 1. محاذاة التطبيق لتحسين الأداء وتقليل استهلاك الذاكرة
-        $BUILD_TOOLS_DIR/zipalign -f -v 4 app-unsigned-unaligned.apk app-unsigned.apk
+        # 1. محاذاة التطبيق
+        $BUILD_TOOLS/zipalign -f -v 4 app-unsigned-unaligned.apk app-unsigned.apk
         
-        # 2. إنشاء مفتاح توقيع تجريبي (Debug Keystore)
+        # 2. إنشاء مفتاح توقيع تجريبي
         keytool -genkey -v -keystore debug.keystore -storepass android -alias androiddebugkey -keypass android -keyalg RSA -keysize 2048 -validity 10000 -dname "CN=Android Debug,O=Android,C=US"
         
-        # 3. توقيع التطبيق ليصبح جاهزاً للتثبيت
-        $BUILD_TOOLS_DIR/apksigner sign --ks debug.keystore --ks-key-alias androiddebugkey --ks-pass pass:android --key-pass pass:android --out app-signed.apk app-unsigned.apk
+        # 3. توقيع التطبيق
+        $BUILD_TOOLS/apksigner sign --ks debug.keystore --ks-key-alias androiddebugkey --ks-pass pass:android --key-pass pass:android --out app-signed.apk app-unsigned.apk
 
     - name: Upload APK Artifact
       uses: actions/upload-artifact@v4
