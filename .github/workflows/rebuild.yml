@@ -26,8 +26,8 @@ jobs:
 
     - name: Download Apktool
       run: |
-        # استخدام رابط GitHub الرسمي والأحدث لـ Apktool
-        wget https://github.com/iBotPeaches/Apktool/releases/download/v2.9.3/apktool-2.9.3.jar -O apktool.jar
+        # استخدام رابط GitHub الرسمي مع اسم الملف الصحيح (شرطة سفلية) وأحدث إصدار
+        wget https://github.com/iBotPeaches/Apktool/releases/download/v3.0.3/apktool_3.0.3.jar -O apktool.jar
         chmod +x apktool.jar
 
     - name: Build APK with Apktool
