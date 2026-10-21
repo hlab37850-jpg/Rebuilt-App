@@ -1,0 +1,137 @@
+.class public Linfo/aalmoghalis/inventory/activity/Main$i;
+.super Ljava/lang/Object;
+.source "SourceFile"
+
+# interfaces
+.implements Landroid/widget/AdapterView$OnItemClickListener;
+
+
+# annotations
+.annotation system Ldalvik/annotation/EnclosingMethod;
+    value = Linfo/aalmoghalis/inventory/activity/Main;->onCreate(Landroid/os/Bundle;)V
+.end annotation
+
+.annotation system Ldalvik/annotation/InnerClass;
+    accessFlags = 0x1
+    name = null
+.end annotation
+
+
+# instance fields
+.field public final synthetic a:Linfo/aalmoghalis/inventory/activity/Main;
+
+
+# direct methods
+.method public constructor <init>(Linfo/aalmoghalis/inventory/activity/Main;)V
+    .locals 0
+
+    .line 1
+    iput-object p1, p0, Linfo/aalmoghalis/inventory/activity/Main$i;->a:Linfo/aalmoghalis/inventory/activity/Main;
+
+    .line 2
+    .line 3
+    invoke-direct {p0}, Ljava/lang/Object;-><init>()V
+
+    .line 4
+    .line 5
+    .line 6
+    return-void
+.end method
+
+
+# virtual methods
+.method public onItemClick(Landroid/widget/AdapterView;Landroid/view/View;IJ)V
+    .locals 0
+
+    .line 1
+    const p1, 0x7f090494
+
+    .line 2
+    .line 3
+    .line 4
+    invoke-virtual {p2, p1}, Landroid/view/View;->findViewById(I)Landroid/view/View;
+
+    .line 5
+    .line 6
+    .line 7
+    move-result-object p1
+
+    .line 8
+    check-cast p1, Landroid/widget/TextView;
+
+    .line 9
+    .line 10
+    if-eqz p3, :cond_0
+
+    .line 11
+    .line 12
+    const/4 p2, 0x1
+
+    .line 13
+    if-eq p3, p2, :cond_0
+
+    .line 14
+    .line 15
+    const/4 p2, 0x3
+
+    .line 16
+    if-ne p3, p2, :cond_1
+
+    .line 17
+    .line 18
+    :cond_0
+    new-instance p2, Landroid/content/Intent;
+
+    .line 19
+    .line 20
+    iget-object p4, p0, Linfo/aalmoghalis/inventory/activity/Main$i;->a:Linfo/aalmoghalis/inventory/activity/Main;
+
+    .line 21
+    .line 22
+    const-class p5, Linfo/aalmoghalis/inventory/activity/Action_list;
+
+    .line 23
+    .line 24
+    invoke-direct {p2, p4, p5}, Landroid/content/Intent;-><init>(Landroid/content/Context;Ljava/lang/Class;)V
+
+    .line 25
+    .line 26
+    .line 27
+    const-string p4, "action_id"
+
+    .line 28
+    .line 29
+    invoke-virtual {p2, p4, p3}, Landroid/content/Intent;->putExtra(Ljava/lang/String;I)Landroid/content/Intent;
+
+    .line 30
+    .line 31
+    .line 32
+    const-string p3, "action_text"
+
+    .line 33
+    .line 34
+    invoke-virtual {p1}, Landroid/widget/TextView;->getText()Ljava/lang/CharSequence;
+
+    .line 35
+    .line 36
+    .line 37
+    move-result-object p1
+
+    .line 38
+    invoke-virtual {p2, p3, p1}, Landroid/content/Intent;->putExtra(Ljava/lang/String;Ljava/lang/CharSequence;)Landroid/content/Intent;
+
+    .line 39
+    .line 40
+    .line 41
+    iget-object p1, p0, Linfo/aalmoghalis/inventory/activity/Main$i;->a:Linfo/aalmoghalis/inventory/activity/Main;
+
+    .line 42
+    .line 43
+    invoke-virtual {p1, p2}, Landroid/content/Context;->startActivity(Landroid/content/Intent;)V
+
+    .line 44
+    .line 45
+    .line 46
+    :cond_1
+    return-void
+.end method

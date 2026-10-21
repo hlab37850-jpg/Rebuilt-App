@@ -1,0 +1,61 @@
+.class final Lorg/apache/poi/hssf/record/formula/atp/AnalysisToolPak$NotImplemented;
+.super Ljava/lang/Object;
+.source "SourceFile"
+
+# interfaces
+.implements Lorg/apache/poi/hssf/record/formula/functions/FreeRefFunction;
+
+
+# annotations
+.annotation system Ldalvik/annotation/EnclosingClass;
+    value = Lorg/apache/poi/hssf/record/formula/atp/AnalysisToolPak;
+.end annotation
+
+.annotation system Ldalvik/annotation/InnerClass;
+    accessFlags = 0x19
+    name = "NotImplemented"
+.end annotation
+
+
+# instance fields
+.field private final _functionName:Ljava/lang/String;
+
+
+# direct methods
+.method public constructor <init>(Ljava/lang/String;)V
+    .locals 0
+
+    .line 1
+    invoke-direct {p0}, Ljava/lang/Object;-><init>()V
+
+    .line 2
+    .line 3
+    .line 4
+    iput-object p1, p0, Lorg/apache/poi/hssf/record/formula/atp/AnalysisToolPak$NotImplemented;->_functionName:Ljava/lang/String;
+
+    .line 5
+    .line 6
+    return-void
+.end method
+
+
+# virtual methods
+.method public evaluate([Lorg/apache/poi/hssf/record/formula/eval/ValueEval;Lorg/apache/poi/ss/formula/OperationEvaluationContext;)Lorg/apache/poi/hssf/record/formula/eval/ValueEval;
+    .locals 0
+
+    .line 1
+    new-instance p1, Lorg/apache/poi/ss/formula/eval/NotImplementedException;
+
+    .line 2
+    .line 3
+    iget-object p2, p0, Lorg/apache/poi/hssf/record/formula/atp/AnalysisToolPak$NotImplemented;->_functionName:Ljava/lang/String;
+
+    .line 4
+    .line 5
+    invoke-direct {p1, p2}, Lorg/apache/poi/ss/formula/eval/NotImplementedException;-><init>(Ljava/lang/String;)V
+
+    .line 6
+    .line 7
+    .line 8
+    throw p1
+.end method

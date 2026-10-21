@@ -1,0 +1,66 @@
+.class public final Lj90;
+.super LIb0;
+.source "SourceFile"
+
+
+# instance fields
+.field public final synthetic a:J
+
+.field public final synthetic b:Landroid/app/PendingIntent;
+
+
+# direct methods
+.method public constructor <init>(Lcom/google/android/gms/internal/location/zzg;Lcom/google/android/gms/common/api/GoogleApiClient;JLandroid/app/PendingIntent;)V
+    .locals 0
+
+    .line 1
+    iput-wide p3, p0, Lj90;->a:J
+
+    .line 2
+    .line 3
+    iput-object p5, p0, Lj90;->b:Landroid/app/PendingIntent;
+
+    .line 4
+    .line 5
+    invoke-direct {p0, p2}, LIb0;-><init>(Lcom/google/android/gms/common/api/GoogleApiClient;)V
+
+    .line 6
+    .line 7
+    .line 8
+    return-void
+.end method
+
+
+# virtual methods
+.method public final bridge synthetic doExecute(Lcom/google/android/gms/common/api/Api$AnyClient;)V
+    .locals 3
+
+    .line 1
+    check-cast p1, Lcom/google/android/gms/internal/location/zzaz;
+
+    .line 2
+    .line 3
+    iget-wide v0, p0, Lj90;->a:J
+
+    .line 4
+    .line 5
+    iget-object v2, p0, Lj90;->b:Landroid/app/PendingIntent;
+
+    .line 6
+    .line 7
+    invoke-virtual {p1, v0, v1, v2}, Lcom/google/android/gms/internal/location/zzaz;->zzq(JLandroid/app/PendingIntent;)V
+
+    .line 8
+    .line 9
+    .line 10
+    sget-object p1, Lcom/google/android/gms/common/api/Status;->RESULT_SUCCESS:Lcom/google/android/gms/common/api/Status;
+
+    .line 11
+    .line 12
+    invoke-virtual {p0, p1}, Lcom/google/android/gms/common/api/internal/BasePendingResult;->setResult(Lcom/google/android/gms/common/api/Result;)V
+
+    .line 13
+    .line 14
+    .line 15
+    return-void
+.end method

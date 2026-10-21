@@ -1,0 +1,235 @@
+.class public Linfo/aalmoghalis/inventory/activity/Order_edit$d1;
+.super Ljava/lang/Object;
+.source "SourceFile"
+
+# interfaces
+.implements Landroid/view/View$OnTouchListener;
+
+
+# annotations
+.annotation system Ldalvik/annotation/EnclosingMethod;
+    value = Linfo/aalmoghalis/inventory/activity/Order_edit;->n0(Ljava/lang/String;Ljava/lang/String;Landroid/os/Handler;)V
+.end annotation
+
+.annotation system Ldalvik/annotation/InnerClass;
+    accessFlags = 0x1
+    name = null
+.end annotation
+
+
+# instance fields
+.field public final synthetic a:Linfo/aalmoghalis/inventory/activity/Order_edit;
+
+
+# direct methods
+.method public constructor <init>(Linfo/aalmoghalis/inventory/activity/Order_edit;)V
+    .locals 0
+
+    .line 1
+    iput-object p1, p0, Linfo/aalmoghalis/inventory/activity/Order_edit$d1;->a:Linfo/aalmoghalis/inventory/activity/Order_edit;
+
+    .line 2
+    .line 3
+    invoke-direct {p0}, Ljava/lang/Object;-><init>()V
+
+    .line 4
+    .line 5
+    .line 6
+    return-void
+.end method
+
+
+# virtual methods
+.method public onTouch(Landroid/view/View;Landroid/view/MotionEvent;)Z
+    .locals 2
+
+    .line 1
+    iget-object p1, p0, Linfo/aalmoghalis/inventory/activity/Order_edit$d1;->a:Linfo/aalmoghalis/inventory/activity/Order_edit;
+
+    .line 2
+    .line 3
+    iget-object p1, p1, Linfo/aalmoghalis/inventory/activity/Order_edit;->u1:Landroid/widget/AutoCompleteTextView;
+
+    .line 4
+    .line 5
+    invoke-virtual {p1}, Landroid/widget/AutoCompleteTextView;->showDropDown()V
+
+    .line 6
+    .line 7
+    .line 8
+    invoke-virtual {p2}, Landroid/view/MotionEvent;->getAction()I
+
+    .line 9
+    .line 10
+    .line 11
+    move-result p1
+
+    .line 12
+    const/4 v0, 0x1
+
+    .line 13
+    const/4 v1, 0x0
+
+    .line 14
+    if-ne p1, v0, :cond_1
+
+    .line 15
+    .line 16
+    invoke-virtual {p2}, Landroid/view/MotionEvent;->getX()F
+
+    .line 17
+    .line 18
+    .line 19
+    move-result p1
+
+    .line 20
+    iget-object p2, p0, Linfo/aalmoghalis/inventory/activity/Order_edit$d1;->a:Linfo/aalmoghalis/inventory/activity/Order_edit;
+
+    .line 21
+    .line 22
+    iget-object p2, p2, Linfo/aalmoghalis/inventory/activity/Order_edit;->u1:Landroid/widget/AutoCompleteTextView;
+
+    .line 23
+    .line 24
+    invoke-virtual {p2}, Landroid/widget/TextView;->getCompoundDrawables()[Landroid/graphics/drawable/Drawable;
+
+    .line 25
+    .line 26
+    .line 27
+    move-result-object p2
+
+    .line 28
+    aget-object p2, p2, v1
+
+    .line 29
+    .line 30
+    if-eqz p2, :cond_0
+
+    .line 31
+    .line 32
+    iget-object p2, p0, Linfo/aalmoghalis/inventory/activity/Order_edit$d1;->a:Linfo/aalmoghalis/inventory/activity/Order_edit;
+
+    .line 33
+    .line 34
+    iget-object p2, p2, Linfo/aalmoghalis/inventory/activity/Order_edit;->u1:Landroid/widget/AutoCompleteTextView;
+
+    .line 35
+    .line 36
+    invoke-virtual {p2}, Landroid/widget/TextView;->getCompoundDrawables()[Landroid/graphics/drawable/Drawable;
+
+    .line 37
+    .line 38
+    .line 39
+    move-result-object p2
+
+    .line 40
+    aget-object p2, p2, v1
+
+    .line 41
+    .line 42
+    invoke-virtual {p2}, Landroid/graphics/drawable/Drawable;->getBounds()Landroid/graphics/Rect;
+
+    .line 43
+    .line 44
+    .line 45
+    move-result-object p2
+
+    .line 46
+    invoke-virtual {p2}, Landroid/graphics/Rect;->width()I
+
+    .line 47
+    .line 48
+    .line 49
+    move-result p2
+
+    .line 50
+    goto :goto_0
+
+    .line 51
+    :cond_0
+    const/4 p2, 0x0
+
+    .line 52
+    :goto_0
+    iget-object v0, p0, Linfo/aalmoghalis/inventory/activity/Order_edit$d1;->a:Linfo/aalmoghalis/inventory/activity/Order_edit;
+
+    .line 53
+    .line 54
+    iget-object v0, v0, Linfo/aalmoghalis/inventory/activity/Order_edit;->u1:Landroid/widget/AutoCompleteTextView;
+
+    .line 55
+    .line 56
+    invoke-virtual {v0}, Landroid/view/View;->getPaddingLeft()I
+
+    .line 57
+    .line 58
+    .line 59
+    move-result v0
+
+    .line 60
+    add-int/2addr p2, v0
+
+    .line 61
+    iget-object v0, p0, Linfo/aalmoghalis/inventory/activity/Order_edit$d1;->a:Linfo/aalmoghalis/inventory/activity/Order_edit;
+
+    .line 62
+    .line 63
+    iget-object v0, v0, Linfo/aalmoghalis/inventory/activity/Order_edit;->u1:Landroid/widget/AutoCompleteTextView;
+
+    .line 64
+    .line 65
+    invoke-virtual {v0}, Landroid/view/View;->getLeft()I
+
+    .line 66
+    .line 67
+    .line 68
+    move-result v0
+
+    .line 69
+    add-int/2addr p2, v0
+
+    .line 70
+    int-to-float p2, p2
+
+    .line 71
+    cmpg-float p1, p1, p2
+
+    .line 72
+    .line 73
+    if-gtz p1, :cond_1
+
+    .line 74
+    .line 75
+    iget-object p1, p0, Linfo/aalmoghalis/inventory/activity/Order_edit$d1;->a:Linfo/aalmoghalis/inventory/activity/Order_edit;
+
+    .line 76
+    .line 77
+    iget-object p1, p1, Linfo/aalmoghalis/inventory/activity/Order_edit;->u1:Landroid/widget/AutoCompleteTextView;
+
+    .line 78
+    .line 79
+    const-string p2, ""
+
+    .line 80
+    .line 81
+    invoke-virtual {p1, p2}, Landroid/widget/TextView;->setText(Ljava/lang/CharSequence;)V
+
+    .line 82
+    .line 83
+    .line 84
+    iget-object p1, p0, Linfo/aalmoghalis/inventory/activity/Order_edit$d1;->a:Linfo/aalmoghalis/inventory/activity/Order_edit;
+
+    .line 85
+    .line 86
+    iget-object p1, p1, Linfo/aalmoghalis/inventory/activity/Order_edit;->u1:Landroid/widget/AutoCompleteTextView;
+
+    .line 87
+    .line 88
+    invoke-virtual {p1}, Landroid/view/View;->requestFocus()Z
+
+    .line 89
+    .line 90
+    .line 91
+    :cond_1
+    return v1
+.end method

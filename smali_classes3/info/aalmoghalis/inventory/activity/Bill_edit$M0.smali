@@ -1,0 +1,399 @@
+.class public Linfo/aalmoghalis/inventory/activity/Bill_edit$M0;
+.super Ljava/lang/Object;
+.source "SourceFile"
+
+# interfaces
+.implements Landroid/view/View$OnTouchListener;
+
+
+# annotations
+.annotation system Ldalvik/annotation/EnclosingMethod;
+    value = Linfo/aalmoghalis/inventory/activity/Bill_edit;->u2()V
+.end annotation
+
+.annotation system Ldalvik/annotation/InnerClass;
+    accessFlags = 0x1
+    name = null
+.end annotation
+
+
+# instance fields
+.field public final synthetic a:Linfo/aalmoghalis/inventory/activity/Bill_edit;
+
+
+# direct methods
+.method public constructor <init>(Linfo/aalmoghalis/inventory/activity/Bill_edit;)V
+    .locals 0
+
+    .line 1
+    iput-object p1, p0, Linfo/aalmoghalis/inventory/activity/Bill_edit$M0;->a:Linfo/aalmoghalis/inventory/activity/Bill_edit;
+
+    .line 2
+    .line 3
+    invoke-direct {p0}, Ljava/lang/Object;-><init>()V
+
+    .line 4
+    .line 5
+    .line 6
+    return-void
+.end method
+
+
+# virtual methods
+.method public onTouch(Landroid/view/View;Landroid/view/MotionEvent;)Z
+    .locals 3
+
+    .line 1
+    iget-object p1, p0, Linfo/aalmoghalis/inventory/activity/Bill_edit$M0;->a:Linfo/aalmoghalis/inventory/activity/Bill_edit;
+
+    .line 2
+    .line 3
+    iget-object p1, p1, Linfo/aalmoghalis/inventory/activity/Bill_edit;->D1:Landroid/widget/AutoCompleteTextView;
+
+    .line 4
+    .line 5
+    invoke-virtual {p1}, Landroid/widget/AutoCompleteTextView;->showDropDown()V
+
+    .line 6
+    .line 7
+    .line 8
+    invoke-virtual {p2}, Landroid/view/MotionEvent;->getAction()I
+
+    .line 9
+    .line 10
+    .line 11
+    move-result p1
+
+    .line 12
+    const/4 v0, 0x1
+
+    .line 13
+    const/4 v1, 0x0
+
+    .line 14
+    if-ne p1, v0, :cond_2
+
+    .line 15
+    .line 16
+    invoke-virtual {p2}, Landroid/view/MotionEvent;->getX()F
+
+    .line 17
+    .line 18
+    .line 19
+    move-result p1
+
+    .line 20
+    iget-object v0, p0, Linfo/aalmoghalis/inventory/activity/Bill_edit$M0;->a:Linfo/aalmoghalis/inventory/activity/Bill_edit;
+
+    .line 21
+    .line 22
+    iget-object v0, v0, Linfo/aalmoghalis/inventory/activity/Bill_edit;->D1:Landroid/widget/AutoCompleteTextView;
+
+    .line 23
+    .line 24
+    invoke-virtual {v0}, Landroid/widget/TextView;->getCompoundDrawables()[Landroid/graphics/drawable/Drawable;
+
+    .line 25
+    .line 26
+    .line 27
+    move-result-object v0
+
+    .line 28
+    aget-object v0, v0, v1
+
+    .line 29
+    .line 30
+    if-eqz v0, :cond_0
+
+    .line 31
+    .line 32
+    iget-object v0, p0, Linfo/aalmoghalis/inventory/activity/Bill_edit$M0;->a:Linfo/aalmoghalis/inventory/activity/Bill_edit;
+
+    .line 33
+    .line 34
+    iget-object v0, v0, Linfo/aalmoghalis/inventory/activity/Bill_edit;->D1:Landroid/widget/AutoCompleteTextView;
+
+    .line 35
+    .line 36
+    invoke-virtual {v0}, Landroid/widget/TextView;->getCompoundDrawables()[Landroid/graphics/drawable/Drawable;
+
+    .line 37
+    .line 38
+    .line 39
+    move-result-object v0
+
+    .line 40
+    aget-object v0, v0, v1
+
+    .line 41
+    .line 42
+    invoke-virtual {v0}, Landroid/graphics/drawable/Drawable;->getBounds()Landroid/graphics/Rect;
+
+    .line 43
+    .line 44
+    .line 45
+    move-result-object v0
+
+    .line 46
+    invoke-virtual {v0}, Landroid/graphics/Rect;->width()I
+
+    .line 47
+    .line 48
+    .line 49
+    move-result v0
+
+    .line 50
+    goto :goto_0
+
+    .line 51
+    :cond_0
+    const/4 v0, 0x0
+
+    .line 52
+    :goto_0
+    iget-object v2, p0, Linfo/aalmoghalis/inventory/activity/Bill_edit$M0;->a:Linfo/aalmoghalis/inventory/activity/Bill_edit;
+
+    .line 53
+    .line 54
+    iget-object v2, v2, Linfo/aalmoghalis/inventory/activity/Bill_edit;->D1:Landroid/widget/AutoCompleteTextView;
+
+    .line 55
+    .line 56
+    invoke-virtual {v2}, Landroid/view/View;->getPaddingLeft()I
+
+    .line 57
+    .line 58
+    .line 59
+    move-result v2
+
+    .line 60
+    add-int/2addr v0, v2
+
+    .line 61
+    iget-object v2, p0, Linfo/aalmoghalis/inventory/activity/Bill_edit$M0;->a:Linfo/aalmoghalis/inventory/activity/Bill_edit;
+
+    .line 62
+    .line 63
+    iget-object v2, v2, Linfo/aalmoghalis/inventory/activity/Bill_edit;->D1:Landroid/widget/AutoCompleteTextView;
+
+    .line 64
+    .line 65
+    invoke-virtual {v2}, Landroid/view/View;->getLeft()I
+
+    .line 66
+    .line 67
+    .line 68
+    move-result v2
+
+    .line 69
+    add-int/2addr v0, v2
+
+    .line 70
+    int-to-float v0, v0
+
+    .line 71
+    cmpg-float p1, p1, v0
+
+    .line 72
+    .line 73
+    if-gtz p1, :cond_1
+
+    .line 74
+    .line 75
+    iget-object p1, p0, Linfo/aalmoghalis/inventory/activity/Bill_edit$M0;->a:Linfo/aalmoghalis/inventory/activity/Bill_edit;
+
+    .line 76
+    .line 77
+    iget-object p1, p1, Linfo/aalmoghalis/inventory/activity/Bill_edit;->D1:Landroid/widget/AutoCompleteTextView;
+
+    .line 78
+    .line 79
+    const-string p2, ""
+
+    .line 80
+    .line 81
+    invoke-virtual {p1, p2}, Landroid/widget/TextView;->setText(Ljava/lang/CharSequence;)V
+
+    .line 82
+    .line 83
+    .line 84
+    iget-object p1, p0, Linfo/aalmoghalis/inventory/activity/Bill_edit$M0;->a:Linfo/aalmoghalis/inventory/activity/Bill_edit;
+
+    .line 85
+    .line 86
+    iget-object p1, p1, Linfo/aalmoghalis/inventory/activity/Bill_edit;->L1:Landroid/widget/TextView;
+
+    .line 87
+    .line 88
+    const/16 v0, 0x8
+
+    .line 89
+    .line 90
+    invoke-virtual {p1, v0}, Landroid/view/View;->setVisibility(I)V
+
+    .line 91
+    .line 92
+    .line 93
+    iget-object p1, p0, Linfo/aalmoghalis/inventory/activity/Bill_edit$M0;->a:Linfo/aalmoghalis/inventory/activity/Bill_edit;
+
+    .line 94
+    .line 95
+    iget-object p1, p1, Linfo/aalmoghalis/inventory/activity/Bill_edit;->L1:Landroid/widget/TextView;
+
+    .line 96
+    .line 97
+    invoke-virtual {p1, p2}, Landroid/widget/TextView;->setText(Ljava/lang/CharSequence;)V
+
+    .line 98
+    .line 99
+    .line 100
+    iget-object p1, p0, Linfo/aalmoghalis/inventory/activity/Bill_edit$M0;->a:Linfo/aalmoghalis/inventory/activity/Bill_edit;
+
+    .line 101
+    .line 102
+    iget-object p1, p1, Linfo/aalmoghalis/inventory/activity/Bill_edit;->B1:Landroid/widget/EditText;
+
+    .line 103
+    .line 104
+    invoke-virtual {p1, p2}, Landroid/widget/TextView;->setText(Ljava/lang/CharSequence;)V
+
+    .line 105
+    .line 106
+    .line 107
+    iget-object p1, p0, Linfo/aalmoghalis/inventory/activity/Bill_edit$M0;->a:Linfo/aalmoghalis/inventory/activity/Bill_edit;
+
+    .line 108
+    .line 109
+    iget-object p1, p1, Linfo/aalmoghalis/inventory/activity/Bill_edit;->y1:Landroid/widget/EditText;
+
+    .line 110
+    .line 111
+    invoke-virtual {p1, p2}, Landroid/widget/TextView;->setText(Ljava/lang/CharSequence;)V
+
+    .line 112
+    .line 113
+    .line 114
+    iget-object p1, p0, Linfo/aalmoghalis/inventory/activity/Bill_edit$M0;->a:Linfo/aalmoghalis/inventory/activity/Bill_edit;
+
+    .line 115
+    .line 116
+    iget-object p1, p1, Linfo/aalmoghalis/inventory/activity/Bill_edit;->C1:Landroid/widget/TextView;
+
+    .line 117
+    .line 118
+    invoke-virtual {p1, p2}, Landroid/widget/TextView;->setText(Ljava/lang/CharSequence;)V
+
+    .line 119
+    .line 120
+    .line 121
+    iget-object p1, p0, Linfo/aalmoghalis/inventory/activity/Bill_edit$M0;->a:Linfo/aalmoghalis/inventory/activity/Bill_edit;
+
+    .line 122
+    .line 123
+    iget-object p1, p1, Linfo/aalmoghalis/inventory/activity/Bill_edit;->D1:Landroid/widget/AutoCompleteTextView;
+
+    .line 124
+    .line 125
+    invoke-virtual {p1}, Landroid/view/View;->requestFocus()Z
+
+    .line 126
+    .line 127
+    .line 128
+    return v1
+
+    .line 129
+    :cond_1
+    invoke-virtual {p2}, Landroid/view/MotionEvent;->getX()F
+
+    .line 130
+    .line 131
+    .line 132
+    iget-object p1, p0, Linfo/aalmoghalis/inventory/activity/Bill_edit$M0;->a:Linfo/aalmoghalis/inventory/activity/Bill_edit;
+
+    .line 133
+    .line 134
+    iget-object p1, p1, Linfo/aalmoghalis/inventory/activity/Bill_edit;->D1:Landroid/widget/AutoCompleteTextView;
+
+    .line 135
+    .line 136
+    invoke-virtual {p1}, Landroid/view/View;->getRight()I
+
+    .line 137
+    .line 138
+    .line 139
+    iget-object p1, p0, Linfo/aalmoghalis/inventory/activity/Bill_edit$M0;->a:Linfo/aalmoghalis/inventory/activity/Bill_edit;
+
+    .line 140
+    .line 141
+    iget-object p1, p1, Linfo/aalmoghalis/inventory/activity/Bill_edit;->D1:Landroid/widget/AutoCompleteTextView;
+
+    .line 142
+    .line 143
+    invoke-virtual {p1}, Landroid/view/View;->getPaddingRight()I
+
+    .line 144
+    .line 145
+    .line 146
+    iget-object p1, p0, Linfo/aalmoghalis/inventory/activity/Bill_edit$M0;->a:Linfo/aalmoghalis/inventory/activity/Bill_edit;
+
+    .line 147
+    .line 148
+    iget-object p1, p1, Linfo/aalmoghalis/inventory/activity/Bill_edit;->D1:Landroid/widget/AutoCompleteTextView;
+
+    .line 149
+    .line 150
+    invoke-virtual {p1}, Landroid/widget/TextView;->getCompoundDrawables()[Landroid/graphics/drawable/Drawable;
+
+    .line 151
+    .line 152
+    .line 153
+    move-result-object p1
+
+    .line 154
+    const/4 p2, 0x2
+
+    .line 155
+    aget-object p1, p1, p2
+
+    .line 156
+    .line 157
+    if-eqz p1, :cond_2
+
+    .line 158
+    .line 159
+    iget-object p1, p0, Linfo/aalmoghalis/inventory/activity/Bill_edit$M0;->a:Linfo/aalmoghalis/inventory/activity/Bill_edit;
+
+    .line 160
+    .line 161
+    iget-object p1, p1, Linfo/aalmoghalis/inventory/activity/Bill_edit;->D1:Landroid/widget/AutoCompleteTextView;
+
+    .line 162
+    .line 163
+    invoke-virtual {p1}, Landroid/widget/TextView;->getCompoundDrawables()[Landroid/graphics/drawable/Drawable;
+
+    .line 164
+    .line 165
+    .line 166
+    move-result-object p1
+
+    .line 167
+    aget-object p1, p1, p2
+
+    .line 168
+    .line 169
+    invoke-virtual {p1}, Landroid/graphics/drawable/Drawable;->getBounds()Landroid/graphics/Rect;
+
+    .line 170
+    .line 171
+    .line 172
+    move-result-object p1
+
+    .line 173
+    invoke-virtual {p1}, Landroid/graphics/Rect;->width()I
+
+    .line 174
+    .line 175
+    .line 176
+    :cond_2
+    return v1
+.end method

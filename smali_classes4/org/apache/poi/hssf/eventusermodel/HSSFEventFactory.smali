@@ -1,0 +1,161 @@
+.class public Lorg/apache/poi/hssf/eventusermodel/HSSFEventFactory;
+.super Ljava/lang/Object;
+.source "SourceFile"
+
+
+# direct methods
+.method public constructor <init>()V
+    .locals 0
+
+    .line 1
+    invoke-direct {p0}, Ljava/lang/Object;-><init>()V
+
+    .line 2
+    .line 3
+    .line 4
+    return-void
+.end method
+
+.method private genericProcessEvents(Lorg/apache/poi/hssf/eventusermodel/HSSFRequest;Ljava/io/InputStream;)S
+    .locals 2
+
+    .line 1
+    new-instance v0, Lorg/apache/poi/hssf/record/RecordFactoryInputStream;
+
+    .line 2
+    .line 3
+    const/4 v1, 0x0
+
+    .line 4
+    invoke-direct {v0, p2, v1}, Lorg/apache/poi/hssf/record/RecordFactoryInputStream;-><init>(Ljava/io/InputStream;Z)V
+
+    .line 5
+    .line 6
+    .line 7
+    :cond_0
+    invoke-virtual {v0}, Lorg/apache/poi/hssf/record/RecordFactoryInputStream;->nextRecord()Lorg/apache/poi/hssf/record/Record;
+
+    .line 8
+    .line 9
+    .line 10
+    move-result-object p2
+
+    .line 11
+    if-nez p2, :cond_1
+
+    .line 12
+    .line 13
+    goto :goto_0
+
+    .line 14
+    :cond_1
+    invoke-virtual {p1, p2}, Lorg/apache/poi/hssf/eventusermodel/HSSFRequest;->processRecord(Lorg/apache/poi/hssf/record/Record;)S
+
+    .line 15
+    .line 16
+    .line 17
+    move-result v1
+
+    .line 18
+    if-eqz v1, :cond_0
+
+    .line 19
+    .line 20
+    :goto_0
+    return v1
+.end method
+
+
+# virtual methods
+.method public abortableProcessEvents(Lorg/apache/poi/hssf/eventusermodel/HSSFRequest;Ljava/io/InputStream;)S
+    .locals 0
+
+    .line 1
+    invoke-direct {p0, p1, p2}, Lorg/apache/poi/hssf/eventusermodel/HSSFEventFactory;->genericProcessEvents(Lorg/apache/poi/hssf/eventusermodel/HSSFRequest;Ljava/io/InputStream;)S
+
+    .line 2
+    .line 3
+    .line 4
+    move-result p1
+
+    .line 5
+    return p1
+.end method
+
+.method public abortableProcessWorkbookEvents(Lorg/apache/poi/hssf/eventusermodel/HSSFRequest;Lorg/apache/poi/poifs/filesystem/DirectoryNode;)S
+    .locals 1
+
+    .line 2
+    const-string v0, "Workbook"
+
+    invoke-virtual {p2, v0}, Lorg/apache/poi/poifs/filesystem/DirectoryNode;->createDocumentInputStream(Ljava/lang/String;)Lorg/apache/poi/poifs/filesystem/DocumentInputStream;
+
+    move-result-object p2
+
+    .line 3
+    invoke-virtual {p0, p1, p2}, Lorg/apache/poi/hssf/eventusermodel/HSSFEventFactory;->abortableProcessEvents(Lorg/apache/poi/hssf/eventusermodel/HSSFRequest;Ljava/io/InputStream;)S
+
+    move-result p1
+
+    return p1
+.end method
+
+.method public abortableProcessWorkbookEvents(Lorg/apache/poi/hssf/eventusermodel/HSSFRequest;Lorg/apache/poi/poifs/filesystem/POIFSFileSystem;)S
+    .locals 0
+
+    .line 1
+    invoke-virtual {p2}, Lorg/apache/poi/poifs/filesystem/POIFSFileSystem;->getRoot()Lorg/apache/poi/poifs/filesystem/DirectoryNode;
+
+    move-result-object p2
+
+    invoke-virtual {p0, p1, p2}, Lorg/apache/poi/hssf/eventusermodel/HSSFEventFactory;->abortableProcessWorkbookEvents(Lorg/apache/poi/hssf/eventusermodel/HSSFRequest;Lorg/apache/poi/poifs/filesystem/DirectoryNode;)S
+
+    move-result p1
+
+    return p1
+.end method
+
+.method public processEvents(Lorg/apache/poi/hssf/eventusermodel/HSSFRequest;Ljava/io/InputStream;)V
+    .locals 0
+
+    .line 1
+    :try_start_0
+    invoke-direct {p0, p1, p2}, Lorg/apache/poi/hssf/eventusermodel/HSSFEventFactory;->genericProcessEvents(Lorg/apache/poi/hssf/eventusermodel/HSSFRequest;Ljava/io/InputStream;)S
+    :try_end_0
+    .catch Lorg/apache/poi/hssf/eventusermodel/HSSFUserException; {:try_start_0 .. :try_end_0} :catch_0
+
+    .line 2
+    .line 3
+    .line 4
+    :catch_0
+    return-void
+.end method
+
+.method public processWorkbookEvents(Lorg/apache/poi/hssf/eventusermodel/HSSFRequest;Lorg/apache/poi/poifs/filesystem/DirectoryNode;)V
+    .locals 1
+
+    .line 2
+    const-string v0, "Workbook"
+
+    invoke-virtual {p2, v0}, Lorg/apache/poi/poifs/filesystem/DirectoryNode;->createDocumentInputStream(Ljava/lang/String;)Lorg/apache/poi/poifs/filesystem/DocumentInputStream;
+
+    move-result-object p2
+
+    .line 3
+    invoke-virtual {p0, p1, p2}, Lorg/apache/poi/hssf/eventusermodel/HSSFEventFactory;->processEvents(Lorg/apache/poi/hssf/eventusermodel/HSSFRequest;Ljava/io/InputStream;)V
+
+    return-void
+.end method
+
+.method public processWorkbookEvents(Lorg/apache/poi/hssf/eventusermodel/HSSFRequest;Lorg/apache/poi/poifs/filesystem/POIFSFileSystem;)V
+    .locals 0
+
+    .line 1
+    invoke-virtual {p2}, Lorg/apache/poi/poifs/filesystem/POIFSFileSystem;->getRoot()Lorg/apache/poi/poifs/filesystem/DirectoryNode;
+
+    move-result-object p2
+
+    invoke-virtual {p0, p1, p2}, Lorg/apache/poi/hssf/eventusermodel/HSSFEventFactory;->processWorkbookEvents(Lorg/apache/poi/hssf/eventusermodel/HSSFRequest;Lorg/apache/poi/poifs/filesystem/DirectoryNode;)V
+
+    return-void
+.end method
