@@ -21,13 +21,13 @@ jobs:
 
     - name: Install Android Build Tools
       run: |
-        # قبول التراخيص وتثبيت أدوات البناء الإصدار 34.0.0 مباشرة من خوادم GitHub
         yes | sudo /usr/local/lib/android/sdk/cmdline-tools/latest/bin/sdkmanager --licenses
         sudo /usr/local/lib/android/sdk/cmdline-tools/latest/bin/sdkmanager "build-tools;34.0.0"
 
     - name: Download Apktool
       run: |
-        wget https://bitbucket.org/iBotPeaches/apktool/downloads/apktool_2.9.3.jar -O apktool.jar
+        # استخدام رابط GitHub الرسمي والأحدث لـ Apktool
+        wget https://github.com/iBotPeaches/Apktool/releases/download/v2.9.3/apktool-2.9.3.jar -O apktool.jar
         chmod +x apktool.jar
 
     - name: Build APK with Apktool
@@ -36,7 +36,6 @@ jobs:
 
     - name: Zipalign and Sign APK
       run: |
-        # تحديد مسار أدوات البناء
         BUILD_TOOLS="/usr/local/lib/android/sdk/build-tools/34.0.0"
         
         # 1. محاذاة التطبيق
