@@ -1,0 +1,56 @@
+name: Rebuild and Sign APK
+
+on:
+  push:
+    branches: [ "main" ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up JDK 17
+      uses: actions/setup-java@v4
+      with:
+        java-version: '17'
+        distribution: 'temurin'
+
+    - name: Setup Android SDK
+      uses: android-actions/setup-android@v3
+
+    - name: Install Android Build Tools
+      run: |
+        sdkmanager "build-tools;34.0.0"
+
+    - name: Download Apktool
+      run: |
+        wget https://bitbucket.org/iBotPeaches/apktool/downloads/apktool_2.9.3.jar -O apktool.jar
+        chmod +x apktool.jar
+
+    - name: Build APK with Apktool
+      run: |
+        java -jar apktool.jar b . -o app-unsigned-unaligned.apk
+
+    - name: Zipalign and Sign APK
+      run: |
+        BUILD_TOOLS_DIR=$(ls -d $ANDROID_HOME/build-tools/34.0.0)
+        
+        # 1. محاذاة التطبيق لتحسين الأداء وتقليل استهلاك الذاكرة
+        $BUILD_TOOLS_DIR/zipalign -f -v 4 app-unsigned-unaligned.apk app-unsigned.apk
+        
+        # 2. إنشاء مفتاح توقيع تجريبي (Debug Keystore)
+        keytool -genkey -v -keystore debug.keystore -storepass android -alias androiddebugkey -keypass android -keyalg RSA -keysize 2048 -validity 10000 -dname "CN=Android Debug,O=Android,C=US"
+        
+        # 3. توقيع التطبيق ليصبح جاهزاً للتثبيت
+        $BUILD_TOOLS_DIR/apksigner sign --ks debug.keystore --ks-key-alias androiddebugkey --ks-pass pass:android --key-pass pass:android --out app-signed.apk app-unsigned.apk
+
+    - name: Upload APK Artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: Rebuilt-APK
+        path: app-signed.apk
+        retention-days: 7
