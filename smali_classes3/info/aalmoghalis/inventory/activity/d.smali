@@ -1842,7 +1842,7 @@
 
     .line 26
     :cond_0
-    const-string p1, "https://www.youtube.com/channel/UCeoaICkhfb4M7t7atseyqIA"
+    const-string p1, ""
 
     .line 27
     .line 28
