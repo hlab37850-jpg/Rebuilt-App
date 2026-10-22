@@ -7,7 +7,7 @@
     <ListPreference android:icon="@drawable/s_average" android:entries="@array/costAvg" android:title="@string/pref_cost_avg" android:key="pref_cost_avg" android:summary="@string/pref_cost_avg" android:defaultValue="1" android:positiveButtonText="@null" android:negativeButtonText="@null" android:entryValues="@array/costAvgValues" />
     <SwitchPreference android:icon="@drawable/s_show_info" android:title="@string/pref_other_closed_year" android:key="prefOthers_closed_year" android:defaultValue="false" />
     <SwitchPreference android:icon="@drawable/s_whatsapp_bus" android:title="@string/pref_other_option_whats_bus_title" android:key="prefOthers_whats_bus" android:defaultValue="false" />
-    <Preference android:icon="@drawable/s_hide_info" android:title="@string/pref_activation_2" android:key="prefOthers_activation" android:defaultValue="false" />
+    <Preference android:icon="@drawable/s_hide_info" android:title="@string/pref_activation_2" android:enabled="false" android:selectable="false" android:key="prefOthers_activation" android:defaultValue="false" />
     <SwitchPreference android:icon="@drawable/s_barcode" android:title="@string/pref_other_option_barcode" android:key="prefOthers_barcode" android:defaultValue="false" />
     <ListPreference android:icon="@drawable/s_barcode" android:entries="@array/barcode_type" android:title="@string/barcode_type" android:key="pref_barcode_type" android:defaultValue="1" android:positiveButtonText="@null" android:negativeButtonText="@null" android:entryValues="@array/barcode_typeValues" />
     <SwitchPreference android:icon="@drawable/s_hide_info" android:title="@string/pref_other_option_item_price" android:key="prefOthers_item_price" android:defaultValue="false" />
