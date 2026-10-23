@@ -1092,10 +1092,12 @@ public final class MainActivity extends Activity {
         addHeading("ميزان المراجعة", "إجماليات المدين والدائن حسب الحسابات المسجلة");
         double debitTotal = 0;
         double creditTotal = 0;
+        int accountRows = 0;
         try (Cursor c = database.getReadableDatabase().rawQuery(
             "SELECT account_name, COALESCE(SUM(debit),0), COALESCE(SUM(credit),0), " +
             "COALESCE(SUM(debit)-SUM(credit),0) FROM transactions GROUP BY account_name ORDER BY account_name", null)) {
             while (c.moveToNext()) {
+                accountRows++;
                 debitTotal += c.getDouble(1);
                 creditTotal += c.getDouble(2);
                 LinearLayout row = card();
@@ -1108,7 +1110,7 @@ public final class MainActivity extends Activity {
         addMetric("إجمالي المدين", debitTotal, "transactions");
         addMetric("إجمالي الدائن", creditTotal, "transactions");
         addMetric("الفرق", debitTotal - creditTotal, "transactions");
-        if (page.getChildCount() <= 5) page.addView(text("لا توجد قيود محاسبية مسجلة حتى الآن.", 13, Color.GRAY, false));
+        if (accountRows == 0) page.addView(text("لا توجد قيود محاسبية مسجلة حتى الآن.", 13, Color.GRAY, false));
     }
 
     private void showBalanceSheetReport() {
