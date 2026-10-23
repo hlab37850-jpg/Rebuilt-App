@@ -178,7 +178,7 @@ public final class DatabaseHelper extends SQLiteOpenHelper {
 
     public long saveInvoiceMulti(String type, String party, List<Long> itemIds, List<String> itemNames,
                                  List<Double> quantities, List<Double> prices, String notes, double discount, double taxRate) {
-        if (discount < 0 || taxRate < 0) throw new IllegalArgumentException("الخصم والضريبة لا يمكن أن يكونا سالبين");
+        if (discount < 0 || taxRate < 0 || taxRate > 100) throw new IllegalArgumentException("تحقق من قيمة الخصم ونسبة الضريبة (0 إلى 100)");
         if (party.trim().isEmpty() || itemIds.isEmpty() || itemIds.size() != itemNames.size()
             || itemIds.size() != quantities.size() || itemIds.size() != prices.size()) {
             throw new IllegalArgumentException("أدخل الطرف وأضف صنفًا واحدًا على الأقل");
