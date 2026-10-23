@@ -534,8 +534,6 @@ public final class MainActivity extends Activity {
         l.setOrientation(LinearLayout.VERTICAL);
         l.setPadding(dp(10), dp(6), dp(10), dp(2));
         l.setLayoutDirection(View.LAYOUT_DIRECTION_RTL);
-        ScrollView s = new ScrollView(this);
-        s.addView(l);
         return l;
     }
     private EditText input(String hint) {
