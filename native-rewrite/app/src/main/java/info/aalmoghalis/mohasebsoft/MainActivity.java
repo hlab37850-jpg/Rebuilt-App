@@ -514,20 +514,53 @@ public final class MainActivity extends Activity {
                 .setPositiveButton("إضافة صنف", (d, w) -> navigate("الأصناف")).setNegativeButton("إلغاء", null).show();
             return;
         }
+        List<String> currencyNames = new ArrayList<>();
+        List<Double> exchangeRates = new ArrayList<>();
+        currencyNames.add("محلي");
+        exchangeRates.add(1.0);
+        try (Cursor c = database.list("currencies")) {
+            while (c.moveToNext()) {
+                double rate = c.getDouble(c.getColumnIndexOrThrow("exchange_rate"));
+                if (rate > 0) {
+                    currencyNames.add(c.getString(c.getColumnIndexOrThrow("name")));
+                    exchangeRates.add(rate);
+                }
+            }
+        }
         LinearLayout form = formLayout();
         EditText party = input("اسم العميل/المورد");
-        EditText discount = input("الخصم (قيمة)");
+        EditText discount = input("الخصم (بالعملة المختارة)");
         discount.setInputType(8194);
         EditText taxRate = input("نسبة الضريبة %");
         taxRate.setInputType(8194);
         EditText notes = input("ملاحظات (اختياري)");
+        Spinner currencyPicker = new Spinner(this);
+        currencyPicker.setAdapter(new ArrayAdapter<>(this, android.R.layout.simple_spinner_dropdown_item, currencyNames));
+        double[] selectedRate = {1.0};
         LinearLayout linesContainer = new LinearLayout(this);
         linesContainer.setOrientation(LinearLayout.VERTICAL);
         List<InvoiceLineInput> lines = new ArrayList<>();
-        addInvoiceLineRow(linesContainer, names, prices, lines);
+        addInvoiceLineRow(linesContainer, names, prices, lines, selectedRate);
+        currencyPicker.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
+            public void onNothingSelected(AdapterView<?> parent) {}
+            public void onItemSelected(AdapterView<?> parent, View view, int position, long id) {
+                if (position < 0 || position >= exchangeRates.size()) return;
+                double oldRate = selectedRate[0];
+                double newRate = exchangeRates.get(position);
+                if (oldRate > 0 && newRate > 0 && oldRate != newRate) {
+                    for (InvoiceLineInput line : lines) {
+                        double currentPrice = parseNumber(line.price.getText().toString());
+                        line.price.setText(String.valueOf(currentPrice * oldRate / newRate));
+                    }
+                }
+                selectedRate[0] = newRate;
+            }
+        });
         Button addLine = button("+ إضافة صنف آخر", Color.WHITE, BLUE);
-        addLine.setOnClickListener(v -> addInvoiceLineRow(linesContainer, names, prices, lines));
+        addLine.setOnClickListener(v -> addInvoiceLineRow(linesContainer, names, prices, lines, selectedRate));
         form.addView(party, matchWrap());
+        form.addView(text("العملة", 13, DARK, true));
+        form.addView(currencyPicker, matchWrap());
         form.addView(text("تفاصيل الأصناف", 15, DARK, true));
         form.addView(linesContainer, matchWrap());
         form.addView(addLine, matchWrap());
@@ -551,8 +584,10 @@ public final class MainActivity extends Activity {
                         quantities.add(parseNumber(line.quantity.getText().toString()));
                         chosenPrices.add(parseNumber(line.price.getText().toString()));
                     }
+                    int currencyIndex = currencyPicker.getSelectedItemPosition();
                     database.saveInvoiceMulti(type, partyName, chosenIds, chosenNames, quantities, chosenPrices,
-                        notes.getText().toString(), parseNumber(discount.getText().toString()), parseNumber(taxRate.getText().toString()));
+                        notes.getText().toString(), parseNumber(discount.getText().toString()),
+                        parseNumber(taxRate.getText().toString()), currencyNames.get(currencyIndex), exchangeRates.get(currencyIndex));
                     toast("تم حفظ الفاتورة وتحديث المخزون");
                     navigate(currentModule);
                 } catch (Exception ex) { toast("تعذر حفظ الفاتورة: " + ex.getMessage()); }
@@ -560,7 +595,7 @@ public final class MainActivity extends Activity {
     }
 
     private void addInvoiceLineRow(LinearLayout parent, List<String> names, List<Double> prices,
-                                   List<InvoiceLineInput> lines) {
+                                   List<InvoiceLineInput> lines, double[] selectedRate) {
         LinearLayout row = card();
         Spinner picker = new Spinner(this);
         ArrayAdapter<String> adapter = new ArrayAdapter<>(this, android.R.layout.simple_spinner_item, names);
@@ -573,7 +608,9 @@ public final class MainActivity extends Activity {
         picker.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
             public void onNothingSelected(AdapterView<?> parent) {}
             public void onItemSelected(AdapterView<?> parent, View view, int position, long id) {
-                if (position >= 0 && position < prices.size()) price.setText(String.valueOf(prices.get(position)));
+                if (position >= 0 && position < prices.size() && selectedRate[0] > 0) {
+                    price.setText(String.valueOf(prices.get(position) / selectedRate[0]));
+                }
             }
         });
         row.addView(text("الصنف", 12, Color.GRAY, true));
@@ -591,10 +628,11 @@ public final class MainActivity extends Activity {
     private void showInvoiceDetails(long id, String party, double total) {
         StringBuilder details = new StringBuilder("الطرف: ").append(party).append("\n");
         try (Cursor invoice = database.getReadableDatabase().rawQuery(
-            "SELECT subtotal, discount, tax_rate, tax_amount FROM invoices WHERE _id=?", new String[]{String.valueOf(id)})) {
+            "SELECT subtotal, discount, tax_rate, tax_amount, currency_name, exchange_rate FROM invoices WHERE _id=?", new String[]{String.valueOf(id)})) {
             if (invoice.moveToFirst()) {
-                details.append("قبل الخصم: ").append(money(invoice.getDouble(0))).append("\n");
-                details.append("الخصم: ").append(money(invoice.getDouble(1))).append("\n");
+                details.append("العملة: ").append(invoice.getString(4)).append(" • سعر الصرف: ").append(money(invoice.getDouble(5))).append("\n");
+                details.append("المجموع قبل الخصم (بالعملة الأساسية): ").append(money(invoice.getDouble(0))).append("\n");
+                details.append("الخصم (بالعملة الأساسية): ").append(money(invoice.getDouble(1))).append("\n");
                 details.append("الضريبة (").append(money(invoice.getDouble(2))).append("%): ").append(money(invoice.getDouble(3))).append("\n\n");
             }
         }
@@ -622,9 +660,10 @@ public final class MainActivity extends Activity {
         html.append("<h2>محاسب بيه</h2><h3>فاتورة رقم ").append(id).append("</h3>");
         html.append("<p>الطرف: ").append(htmlEscape(party)).append("</p>");
         try (Cursor invoice = database.getReadableDatabase().rawQuery(
-            "SELECT subtotal, discount, tax_rate, tax_amount FROM invoices WHERE _id=?", new String[]{String.valueOf(id)})) {
+            "SELECT subtotal, discount, tax_rate, tax_amount, currency_name, exchange_rate FROM invoices WHERE _id=?", new String[]{String.valueOf(id)})) {
             if (invoice.moveToFirst()) {
-                html.append("<p>قبل الخصم: ").append(money(invoice.getDouble(0)))
+                html.append("<p>العملة: ").append(htmlEscape(invoice.getString(4))).append(" • سعر الصرف: ").append(money(invoice.getDouble(5))).append("</p>");
+                html.append("<p>المجموع قبل الخصم (الأساسية): ").append(money(invoice.getDouble(0)))
                     .append(" | الخصم: ").append(money(invoice.getDouble(1)))
                     .append(" | الضريبة ").append(money(invoice.getDouble(2))).append("%: ")
                     .append(money(invoice.getDouble(3))).append("</p>");
