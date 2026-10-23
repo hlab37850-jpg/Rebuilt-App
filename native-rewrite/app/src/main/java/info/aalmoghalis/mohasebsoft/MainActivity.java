@@ -411,9 +411,11 @@ public final class MainActivity extends Activity {
             }
         }
         page.addView(text("الفواتير", 17, BLUE, true));
+        String primaryType = "customers".equals(table) ? "بيع" : "شراء";
+        String returnType = "customers".equals(table) ? "مرتجع بيع" : "مرتجع شراء";
         try (Cursor invoices = database.getReadableDatabase().rawQuery(
-            "SELECT _id, type, created_at, total FROM invoices WHERE party_name=? ORDER BY _id DESC",
-            new String[]{name})) {
+            "SELECT _id, type, created_at, total FROM invoices WHERE party_name=? AND type IN (?,?) ORDER BY _id DESC",
+            new String[]{name, primaryType, returnType})) {
             while (invoices.moveToNext()) {
                 LinearLayout row = card();
                 row.addView(text("#" + invoices.getLong(0) + " • " + invoices.getString(1), 15, DARK, true));
