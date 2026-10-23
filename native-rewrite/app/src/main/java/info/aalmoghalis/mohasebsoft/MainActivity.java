@@ -1123,7 +1123,12 @@ public final class MainActivity extends Activity {
                 if (exportedFormat && !cells.isEmpty()) cells = new ArrayList<>(cells.subList(1, cells.size()));
                 try {
                     ContentValues values = csvValues(importTarget, cells);
-                    database.saveEntity(importTarget, 0, values);
+                    long insertedId = database.saveEntity(importTarget, 0, values);
+                    if (("customers".equals(importTarget) || "suppliers".equals(importTarget)) && cells.size() > 4) {
+                        ContentValues current = new ContentValues();
+                        current.put("balance", parseNumber(cells.get(4)));
+                        database.getWritableDatabase().update(importTarget, current, "_id=?", new String[]{String.valueOf(insertedId)});
+                    }
                     imported++;
                 } catch (Exception ex) { skipped++; }
             }
