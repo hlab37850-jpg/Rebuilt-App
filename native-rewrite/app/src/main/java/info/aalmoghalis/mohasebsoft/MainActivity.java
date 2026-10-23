@@ -1099,16 +1099,28 @@ public final class MainActivity extends Activity {
         int skipped = 0;
         try (InputStream in = getContentResolver().openInputStream(uri);
              BufferedReader reader = new BufferedReader(new InputStreamReader(in, StandardCharsets.UTF_8))) {
-            if (reader == null) throw new IllegalStateException("تعذر فتح الملف");
             String line;
-            boolean first = true;
+            String section = "";
+            boolean exportedFormat = false;
             while ((line = reader.readLine()) != null) {
-                if (line.trim().isEmpty()) continue;
-                List<String> cells = parseCsvLine(line);
-                if (first) {
-                    first = false;
-                    if (!cells.isEmpty() && cells.get(0).replace("\\uFEFF", "").trim().equalsIgnoreCase("name")) continue;
+                String trimmed = line.trim();
+                if (trimmed.isEmpty()) continue;
+                if (trimmed.startsWith("# ")) {
+                    section = trimmed.substring(2).trim();
+                    exportedFormat = false;
+                    continue;
                 }
+                if (!section.isEmpty() && !section.equals(importTarget)) continue;
+                List<String> cells = parseCsvLine(line);
+                if (cells.isEmpty()) continue;
+                String firstCell = cells.get(0).replace(String.valueOf((char) 0xFEFF), "").trim();
+                if (firstCell.equalsIgnoreCase("_id")) {
+                    exportedFormat = true;
+                    continue;
+                }
+                if (firstCell.equalsIgnoreCase("name")) continue;
+                if (firstCell.startsWith("#")) continue;
+                if (exportedFormat && !cells.isEmpty()) cells = new ArrayList<>(cells.subList(1, cells.size()));
                 try {
                     ContentValues values = csvValues(importTarget, cells);
                     database.saveEntity(importTarget, 0, values);
