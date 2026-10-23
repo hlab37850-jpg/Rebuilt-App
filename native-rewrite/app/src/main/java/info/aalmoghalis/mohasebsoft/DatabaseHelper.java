@@ -34,6 +34,7 @@ public final class DatabaseHelper extends SQLiteOpenHelper {
         db.execSQL("CREATE TABLE taxes (_id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL UNIQUE, rate REAL NOT NULL DEFAULT 0)");
         db.execSQL("CREATE TABLE branches (_id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL UNIQUE, location TEXT)");
         db.execSQL("CREATE TABLE payments (_id INTEGER PRIMARY KEY AUTOINCREMENT, entity_table TEXT NOT NULL, entity_id INTEGER NOT NULL, entity_name TEXT NOT NULL, amount REAL NOT NULL, notes TEXT, created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP)");
+        db.execSQL("CREATE TABLE cash_movements (_id INTEGER PRIMARY KEY AUTOINCREMENT, cash_box_id INTEGER NOT NULL, box_name TEXT NOT NULL, type TEXT NOT NULL, amount REAL NOT NULL, notes TEXT, created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP)");
     }
 
     @Override public void onUpgrade(SQLiteDatabase db, int oldVersion, int newVersion) {
@@ -219,6 +220,29 @@ public final class DatabaseHelper extends SQLiteOpenHelper {
         return getWritableDatabase().insertOrThrow("transactions", null, values);
     }
 
+    public long saveCashMovement(long boxId, String boxName, String type, double amount, String notes) {
+        if (boxId <= 0 || amount <= 0 || !("إيداع".equals(type) || "سحب".equals(type))) {
+            throw new IllegalArgumentException("اختر الصندوق وأدخل مبلغًا موجبًا");
+        }
+        SQLiteDatabase db = getWritableDatabase();
+        db.beginTransaction();
+        try {
+            if ("سحب".equals(type)) {
+                try (Cursor c = db.rawQuery("SELECT balance FROM cash_boxes WHERE _id=?", new String[]{String.valueOf(boxId)})) {
+                    if (!c.moveToFirst() || c.getDouble(0) < amount) throw new IllegalArgumentException("الرصيد النقدي غير كافٍ");
+                }
+            }
+            String operator = "إيداع".equals(type) ? "+" : "-";
+            db.execSQL("UPDATE cash_boxes SET balance = balance " + operator + " ? WHERE _id=?", new Object[]{amount, boxId});
+            ContentValues values = new ContentValues();
+            values.put("cash_box_id", boxId); values.put("box_name", boxName);
+            values.put("type", type); values.put("amount", amount); values.put("notes", notes == null ? "" : notes.trim());
+            long id = db.insertOrThrow("cash_movements", null, values);
+            db.setTransactionSuccessful();
+            return id;
+        } finally { db.endTransaction(); }
+    }
+
     public long savePayment(String entityTable, long entityId, String entityName, double amount, String notes) {
         if (!("customers".equals(entityTable) || "suppliers".equals(entityTable)) || amount <= 0) {
             throw new IllegalArgumentException("حدد الحساب وأدخل مبلغًا موجبًا");
@@ -298,6 +322,6 @@ public final class DatabaseHelper extends SQLiteOpenHelper {
             || "transactions".equals(table) || "groups_catalog".equals(table) || "accounts".equals(table)
             || "cash_boxes".equals(table) || "expenses".equals(table) || "warehouses".equals(table) || "item_movements".equals(table)
             || "item_types".equals(table) || "units".equals(table) || "currencies".equals(table)
-            || "taxes".equals(table) || "branches".equals(table) || "payments".equals(table);
+            || "taxes".equals(table) || "branches".equals(table) || "payments".equals(table) || "cash_movements".equals(table);
     }
 }
