@@ -33,6 +33,7 @@ public final class DatabaseHelper extends SQLiteOpenHelper {
         db.execSQL("CREATE TABLE currencies (_id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL UNIQUE, code TEXT, exchange_rate REAL NOT NULL DEFAULT 1)");
         db.execSQL("CREATE TABLE taxes (_id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL UNIQUE, rate REAL NOT NULL DEFAULT 0)");
         db.execSQL("CREATE TABLE branches (_id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL UNIQUE, location TEXT)");
+        db.execSQL("CREATE TABLE payments (_id INTEGER PRIMARY KEY AUTOINCREMENT, entity_table TEXT NOT NULL, entity_id INTEGER NOT NULL, entity_name TEXT NOT NULL, amount REAL NOT NULL, notes TEXT, created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP)");
     }
 
     @Override public void onUpgrade(SQLiteDatabase db, int oldVersion, int newVersion) {
@@ -218,6 +219,30 @@ public final class DatabaseHelper extends SQLiteOpenHelper {
         return getWritableDatabase().insertOrThrow("transactions", null, values);
     }
 
+    public long savePayment(String entityTable, long entityId, String entityName, double amount, String notes) {
+        if (!("customers".equals(entityTable) || "suppliers".equals(entityTable)) || amount <= 0) {
+            throw new IllegalArgumentException("حدد الحساب وأدخل مبلغًا موجبًا");
+        }
+        SQLiteDatabase db = getWritableDatabase();
+        db.beginTransaction();
+        try {
+            try (Cursor c = db.rawQuery("SELECT balance FROM " + entityTable + " WHERE _id=?", new String[]{String.valueOf(entityId)})) {
+                if (!c.moveToFirst()) throw new IllegalArgumentException("الحساب غير موجود");
+                if (c.getDouble(0) < amount) throw new IllegalArgumentException("المبلغ أكبر من الرصيد الحالي");
+            }
+            db.execSQL("UPDATE " + entityTable + " SET balance = balance - ? WHERE _id=?", new Object[]{amount, entityId});
+            ContentValues values = new ContentValues();
+            values.put("entity_table", entityTable);
+            values.put("entity_id", entityId);
+            values.put("entity_name", entityName);
+            values.put("amount", amount);
+            values.put("notes", notes == null ? "" : notes.trim());
+            long id = db.insertOrThrow("payments", null, values);
+            db.setTransactionSuccessful();
+            return id;
+        } finally { db.endTransaction(); }
+    }
+
     public long saveExpense(String type, String title, String category, double amount, String notes) {
         if (title.trim().isEmpty() || amount <= 0) throw new IllegalArgumentException("أدخل البيان والمبلغ الصحيح");
         ContentValues values = new ContentValues();
@@ -273,6 +298,6 @@ public final class DatabaseHelper extends SQLiteOpenHelper {
             || "transactions".equals(table) || "groups_catalog".equals(table) || "accounts".equals(table)
             || "cash_boxes".equals(table) || "expenses".equals(table) || "warehouses".equals(table) || "item_movements".equals(table)
             || "item_types".equals(table) || "units".equals(table) || "currencies".equals(table)
-            || "taxes".equals(table) || "branches".equals(table);
+            || "taxes".equals(table) || "branches".equals(table) || "payments".equals(table);
     }
 }
