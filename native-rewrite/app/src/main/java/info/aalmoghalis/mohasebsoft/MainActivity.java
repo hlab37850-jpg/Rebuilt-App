@@ -455,6 +455,111 @@ public final class MainActivity extends Activity {
             }).show();
     }
 
+    private void showExpenses() {
+        page.removeAllViews();
+        addHeading("النفقات والإيرادات", "تسجيل الحركات النقدية ومراجعة إجمالياتها");
+        LinearLayout actions = new LinearLayout(this);
+        actions.setOrientation(LinearLayout.HORIZONTAL);
+        Button expense = button("+ إضافة مصروف", BLUE, Color.WHITE);
+        Button income = button("+ إضافة إيراد", Color.rgb(28, 133, 93), Color.WHITE);
+        actions.addView(expense, new LinearLayout.LayoutParams(0, -2, 1));
+        actions.addView(income, new LinearLayout.LayoutParams(0, -2, 1));
+        page.addView(actions);
+        expense.setOnClickListener(v -> showExpenseForm("مصروف"));
+        income.setOnClickListener(v -> showExpenseForm("إيراد"));
+        addMetric("إجمالي المصروفات", database.sumExpenses("مصروف"), "transactions");
+        addMetric("إجمالي الإيرادات", database.sumExpenses("إيراد"), "transactions");
+        LinearLayout rows = new LinearLayout(this);
+        rows.setOrientation(LinearLayout.VERTICAL);
+        page.addView(rows);
+        try (Cursor c = database.list("expenses")) {
+            while (c.moveToNext()) {
+                LinearLayout item = card();
+                item.addView(text(c.getString(c.getColumnIndexOrThrow("title")) + " • " + c.getString(c.getColumnIndexOrThrow("type")), 16, DARK, true));
+                item.addView(text(safe(c, "category") + " • " + safe(c, "created_at") + " • " + money(c.getDouble(c.getColumnIndexOrThrow("amount"))), 13, Color.GRAY, false));
+                rows.addView(item);
+            }
+        }
+        if (rows.getChildCount() == 0) rows.addView(text("لا توجد حركات مسجلة.", 14, Color.GRAY, false));
+    }
+
+    private void showExpenseForm(String type) {
+        LinearLayout form = formLayout();
+        EditText title = input("البيان");
+        EditText category = input("التصنيف");
+        EditText amount = input("المبلغ");
+        amount.setInputType(8194);
+        EditText notes = input("ملاحظات");
+        form.addView(title, matchWrap());
+        form.addView(category, matchWrap());
+        form.addView(amount, matchWrap());
+        form.addView(notes, matchWrap());
+        new AlertDialog.Builder(this).setTitle("إضافة " + type).setView(form)
+            .setNegativeButton("إلغاء", null)
+            .setPositiveButton("حفظ", (d, w) -> {
+                try {
+                    database.saveExpense(type, title.getText().toString(), category.getText().toString(),
+                        parseNumber(amount.getText().toString()), notes.getText().toString());
+                    toast("تم حفظ " + type);
+                    navigate("النفقات والإيرادات");
+                } catch (Exception ex) { toast("تعذر الحفظ: " + ex.getMessage()); }
+            }).show();
+    }
+
+    private void showItemMovements() {
+        page.removeAllViews();
+        addHeading("حركة الأصناف", "تسجيل الإضافة والصرف وتحديث المخزون");
+        Button add = button("+ حركة مخزنية", BLUE, Color.WHITE);
+        page.addView(add, matchWrap());
+        add.setOnClickListener(v -> showItemMovementForm());
+        LinearLayout rows = new LinearLayout(this);
+        rows.setOrientation(LinearLayout.VERTICAL);
+        page.addView(rows);
+        try (Cursor c = database.list("item_movements")) {
+            while (c.moveToNext()) {
+                LinearLayout item = card();
+                item.addView(text(c.getString(c.getColumnIndexOrThrow("item_name")) + " • " + c.getString(c.getColumnIndexOrThrow("type")), 16, DARK, true));
+                item.addView(text("الكمية: " + number(c, "quantity") + " • " + safe(c, "created_at") + " • " + safe(c, "notes"), 13, Color.GRAY, false));
+                rows.addView(item);
+            }
+        }
+        if (rows.getChildCount() == 0) rows.addView(text("لا توجد حركات مخزنية مسجلة.", 14, Color.GRAY, false));
+    }
+
+    private void showItemMovementForm() {
+        List<Long> ids = new ArrayList<>();
+        List<String> names = new ArrayList<>();
+        try (Cursor c = database.itemsForPicker()) {
+            while (c.moveToNext()) { ids.add(c.getLong(0)); names.add(c.getString(1)); }
+        }
+        if (names.isEmpty()) {
+            new AlertDialog.Builder(this).setMessage("أضف صنفًا أولًا.")
+                .setPositiveButton("إضافة صنف", (d, w) -> navigate("الأصناف")).setNegativeButton("إلغاء", null).show();
+            return;
+        }
+        LinearLayout form = formLayout();
+        Spinner itemPicker = new Spinner(this);
+        itemPicker.setAdapter(new ArrayAdapter<>(this, android.R.layout.simple_spinner_dropdown_item, names));
+        Spinner typePicker = new Spinner(this);
+        typePicker.setAdapter(new ArrayAdapter<>(this, android.R.layout.simple_spinner_dropdown_item, new String[]{"إضافة", "صرف"}));
+        EditText quantity = input("الكمية");
+        quantity.setInputType(8194);
+        EditText notes = input("البيان/المرجع");
+        form.addView(text("الصنف", 13, DARK, true)); form.addView(itemPicker, matchWrap());
+        form.addView(text("نوع الحركة", 13, DARK, true)); form.addView(typePicker, matchWrap());
+        form.addView(quantity, matchWrap()); form.addView(notes, matchWrap());
+        new AlertDialog.Builder(this).setTitle("حركة مخزنية").setView(form).setNegativeButton("إلغاء", null)
+            .setPositiveButton("حفظ", (d, w) -> {
+                try {
+                    int ix = itemPicker.getSelectedItemPosition();
+                    database.saveItemMovement(ids.get(ix), names.get(ix), String.valueOf(typePicker.getSelectedItem()),
+                        parseNumber(quantity.getText().toString()), notes.getText().toString());
+                    toast("تم حفظ الحركة وتحديث المخزون");
+                    navigate("حركة الأصناف");
+                } catch (Exception ex) { toast("تعذر حفظ الحركة: " + ex.getMessage()); }
+            }).show();
+    }
+
     private void showReports() {
         page.removeAllViews();
         addHeading("التقارير", "ملخص مباشر من قاعدة البيانات المحلية");
