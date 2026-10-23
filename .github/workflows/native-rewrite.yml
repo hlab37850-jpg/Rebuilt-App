@@ -13,8 +13,8 @@ permissions:
   contents: read
 
 concurrency:
-  group: native-rewrite-${{ github.ref }}
-  cancel-in-progress: true
+  group: native-rewrite-${{ github.run_id }}
+  cancel-in-progress: false
 
 jobs:
   build:
