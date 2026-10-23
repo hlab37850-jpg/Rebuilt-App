@@ -177,7 +177,7 @@ public final class DatabaseHelper extends SQLiteOpenHelper {
         SQLiteDatabase db = getWritableDatabase();
         db.beginTransaction();
         try {
-            if ("بيع".equals(type)) {
+            if (decreasesStock(type)) {
                 for (int i = 0; i < itemIds.size(); i++) {
                     try (Cursor stock = db.rawQuery("SELECT stock FROM items WHERE _id=?", new String[]{String.valueOf(itemIds.get(i))})) {
                         if (!stock.moveToFirst()) throw new IllegalArgumentException("أحد الأصناف غير موجود");
@@ -208,13 +208,14 @@ public final class DatabaseHelper extends SQLiteOpenHelper {
                 line.put("price", price);
                 line.put("line_total", quantity * price);
                 db.insertOrThrow("invoice_lines", null, line);
-                String operator = "بيع".equals(type) ? "-" : "+";
+                String operator = decreasesStock(type) ? "-" : "+";
                 db.execSQL("UPDATE items SET stock = stock " + operator + " ? WHERE _id=?",
                     new Object[]{quantity, itemIds.get(i)});
             }
-            String partyTable = "بيع".equals(type) ? "customers" : "suppliers";
+            String partyTable = isCustomerInvoice(type) ? "customers" : "suppliers";
+            double balanceDelta = isReturn(type) ? -total : total;
             db.execSQL("UPDATE " + partyTable + " SET balance = balance + ? WHERE name = ? COLLATE NOCASE",
-                new Object[]{total, party.trim()});
+                new Object[]{balanceDelta, party.trim()});
             db.setTransactionSuccessful();
             return invoiceId;
         } finally { db.endTransaction(); }
@@ -243,7 +244,7 @@ public final class DatabaseHelper extends SQLiteOpenHelper {
                 if (!inv.moveToFirst()) throw new IllegalArgumentException("الفاتورة غير موجودة");
                 type = inv.getString(0); party = inv.getString(1); total = inv.getDouble(2);
             }
-            if ("شراء".equals(type)) {
+            if (!decreasesStock(type)) {
                 try (Cursor lines = db.rawQuery("SELECT item_id, quantity FROM invoice_lines WHERE invoice_id=?", new String[]{String.valueOf(invoiceId)})) {
                     while (lines.moveToNext()) {
                         long itemId = lines.getLong(0);
@@ -263,12 +264,13 @@ public final class DatabaseHelper extends SQLiteOpenHelper {
                 while (lines.moveToNext()) {
                     long itemId = lines.getLong(0);
                     double quantity = lines.getDouble(1);
-                    String operator = "بيع".equals(type) ? "+" : "-";
+                    String operator = decreasesStock(type) ? "+" : "-";
                     db.execSQL("UPDATE items SET stock = stock " + operator + " ? WHERE _id=?", new Object[]{quantity, itemId});
                 }
             }
-            String partyTable = "بيع".equals(type) ? "customers" : "suppliers";
-            db.execSQL("UPDATE " + partyTable + " SET balance = balance - ? WHERE name = ? COLLATE NOCASE", new Object[]{total, party});
+            String partyTable = isCustomerInvoice(type) ? "customers" : "suppliers";
+            double balanceDelta = isReturn(type) ? total : -total;
+            db.execSQL("UPDATE " + partyTable + " SET balance = balance + ? WHERE name = ? COLLATE NOCASE", new Object[]{balanceDelta, party});
             db.delete("invoice_lines", "invoice_id=?", new String[]{String.valueOf(invoiceId)});
             db.delete("invoices", "_id=?", new String[]{String.valueOf(invoiceId)});
             db.setTransactionSuccessful();
@@ -369,6 +371,18 @@ public final class DatabaseHelper extends SQLiteOpenHelper {
         return getReadableDatabase().rawQuery(
             "SELECT item_name, quantity, price, line_total FROM invoice_lines WHERE invoice_id=?",
             new String[]{String.valueOf(invoiceId)});
+    }
+
+    private boolean decreasesStock(String type) {
+        return "بيع".equals(type) || "مرتجع شراء".equals(type);
+    }
+
+    private boolean isCustomerInvoice(String type) {
+        return "بيع".equals(type) || "مرتجع بيع".equals(type);
+    }
+
+    private boolean isReturn(String type) {
+        return type != null && type.startsWith("مرتجع");
     }
 
     private boolean isAllowed(String table) {
