@@ -35,6 +35,8 @@ import java.io.InputStream;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
+import java.io.BufferedReader;
+import java.io.InputStreamReader;
 import java.io.OutputStreamWriter;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
@@ -48,6 +50,7 @@ public final class MainActivity extends Activity {
     private DatabaseHelper database;
     private LinearLayout page;
     private String currentModule = "الرئيسية";
+    private String importTarget = "items";
     private final List<String> modules = new ArrayList<>();
 
     @Override public void onCreate(Bundle state) {
@@ -721,6 +724,9 @@ public final class MainActivity extends Activity {
             intent.setType("*/*");
             startActivityForResult(intent, 43);
         });
+        Button importCsv = button("استيراد CSV", Color.WHITE, DARK);
+        page.addView(importCsv, matchWrap());
+        importCsv.setOnClickListener(v -> chooseImportTarget());
         Button export = button("تصدير البيانات إلى CSV", Color.WHITE, DARK);
         page.addView(export, matchWrap());
         export.setOnClickListener(v -> {
@@ -773,6 +779,10 @@ public final class MainActivity extends Activity {
             } catch (Exception ex) { toast("فشلت الاستعادة: " + ex.getMessage()); }
             return;
         }
+        if (requestCode == 44) {
+            importCsvFile(data.getData());
+            return;
+        }
         if (requestCode != 41) return;
         try (OutputStream out = getContentResolver().openOutputStream(data.getData());
              OutputStreamWriter writer = new OutputStreamWriter(out, StandardCharsets.UTF_8)) {
@@ -803,6 +813,98 @@ public final class MainActivity extends Activity {
         Spinner picker;
         EditText quantity;
         EditText price;
+    }
+
+    private void chooseImportTarget() {
+        String[] labels = {"الأصناف", "العملاء", "الموردون", "التصنيفات", "أنواع الأصناف", "الوحدات", "العملات", "الضرائب", "الفروع", "المخازن", "الدليل المحاسبي", "الصناديق والبنوك"};
+        String[] tables = {"items", "customers", "suppliers", "groups_catalog", "item_types", "units", "currencies", "taxes", "branches", "warehouses", "accounts", "cash_boxes"};
+        Spinner picker = new Spinner(this);
+        picker.setAdapter(new ArrayAdapter<>(this, android.R.layout.simple_spinner_dropdown_item, labels));
+        new AlertDialog.Builder(this).setTitle("اختر نوع البيانات")
+            .setView(picker).setNegativeButton("إلغاء", null)
+            .setPositiveButton("اختيار ملف", (d, w) -> {
+                importTarget = tables[picker.getSelectedItemPosition()];
+                Intent intent = new Intent(Intent.ACTION_OPEN_DOCUMENT);
+                intent.addCategory(Intent.CATEGORY_OPENABLE);
+                intent.setType("text/*");
+                startActivityForResult(intent, 44);
+            }).show();
+    }
+
+    private void importCsvFile(Uri uri) {
+        int imported = 0;
+        int skipped = 0;
+        try (InputStream in = getContentResolver().openInputStream(uri);
+             BufferedReader reader = new BufferedReader(new InputStreamReader(in, StandardCharsets.UTF_8))) {
+            if (reader == null) throw new IllegalStateException("تعذر فتح الملف");
+            String line;
+            boolean first = true;
+            while ((line = reader.readLine()) != null) {
+                if (line.trim().isEmpty()) continue;
+                List<String> cells = parseCsvLine(line);
+                if (first) {
+                    first = false;
+                    if (!cells.isEmpty() && cells.get(0).replace("\\uFEFF", "").trim().equalsIgnoreCase("name")) continue;
+                }
+                try {
+                    ContentValues values = csvValues(importTarget, cells);
+                    database.saveEntity(importTarget, 0, values);
+                    imported++;
+                } catch (Exception ex) { skipped++; }
+            }
+            toast("اكتمل الاستيراد: " + imported + " سجل، وتم تجاوز " + skipped + " سجل.");
+            navigate("الإعدادات");
+        } catch (Exception ex) { toast("تعذر استيراد الملف: " + ex.getMessage()); }
+    }
+
+    private ContentValues csvValues(String table, List<String> cells) {
+        ContentValues v = new ContentValues();
+        if ("customers".equals(table) || "suppliers".equals(table)) {
+            v.put("name", cell(cells, 0)); v.put("phone", cell(cells, 1)); v.put("address", cell(cells, 2));
+            v.put("opening_balance", parseNumber(cell(cells, 3)));
+        } else if ("items".equals(table)) {
+            v.put("name", cell(cells, 0)); v.put("code", cell(cells, 1)); v.put("unit", cell(cells, 2));
+            v.put("purchase_price", parseNumber(cell(cells, 3))); v.put("sale_price", parseNumber(cell(cells, 4)));
+            v.put("stock", parseNumber(cell(cells, 5)));
+        } else if ("groups_catalog".equals(table)) {
+            v.put("name", cell(cells, 0)); v.put("kind", cell(cells, 1));
+        } else if ("item_types".equals(table) || "accounts".equals(table)) {
+            v.put("name", cell(cells, 0));
+            if ("accounts".equals(table)) { v.put("type", cell(cells, 1)); v.put("opening_balance", parseNumber(cell(cells, 2))); }
+        } else if ("units".equals(table)) {
+            v.put("name", cell(cells, 0)); v.put("abbreviation", cell(cells, 1));
+        } else if ("currencies".equals(table)) {
+            v.put("name", cell(cells, 0)); v.put("code", cell(cells, 1)); v.put("exchange_rate", parseNumber(cell(cells, 2)));
+        } else if ("taxes".equals(table)) {
+            v.put("name", cell(cells, 0)); v.put("rate", parseNumber(cell(cells, 1)));
+        } else if ("branches".equals(table) || "warehouses".equals(table)) {
+            v.put("name", cell(cells, 0)); v.put("location", cell(cells, 1));
+        } else if ("cash_boxes".equals(table)) {
+            v.put("name", cell(cells, 0)); v.put("currency", cell(cells, 1)); v.put("balance", parseNumber(cell(cells, 2)));
+        }
+        if (cell(cells, 0).trim().isEmpty()) throw new IllegalArgumentException("الاسم فارغ");
+        return v;
+    }
+
+    private String cell(List<String> cells, int index) {
+        return index < cells.size() ? cells.get(index).trim() : "";
+    }
+
+    private List<String> parseCsvLine(String line) {
+        List<String> cells = new ArrayList<>();
+        StringBuilder value = new StringBuilder();
+        boolean quoted = false;
+        for (int i = 0; i < line.length(); i++) {
+            char ch = line.charAt(i);
+            if (ch == '"') {
+                if (quoted && i + 1 < line.length() && line.charAt(i + 1) == '"') { value.append('"'); i++; }
+                else quoted = !quoted;
+            } else if (ch == ',' && !quoted) {
+                cells.add(value.toString()); value.setLength(0);
+            } else value.append(ch);
+        }
+        cells.add(value.toString());
+        return cells;
     }
 
     private void copy(InputStream in, OutputStream out) throws java.io.IOException {
