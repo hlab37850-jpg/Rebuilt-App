@@ -220,6 +220,44 @@ public final class DatabaseHelper extends SQLiteOpenHelper {
         return getWritableDatabase().insertOrThrow("transactions", null, values);
     }
 
+    public void deleteInvoice(long invoiceId) {
+        SQLiteDatabase db = getWritableDatabase();
+        db.beginTransaction();
+        try {
+            String type;
+            String party;
+            double total;
+            try (Cursor inv = db.rawQuery("SELECT type, party_name, total FROM invoices WHERE _id=?", new String[]{String.valueOf(invoiceId)})) {
+                if (!inv.moveToFirst()) throw new IllegalArgumentException("الفاتورة غير موجودة");
+                type = inv.getString(0); party = inv.getString(1); total = inv.getDouble(2);
+            }
+            try (Cursor lines = db.rawQuery("SELECT item_id, item_name, quantity FROM invoice_lines WHERE invoice_id=?", new String[]{String.valueOf(invoiceId)})) {
+                while (lines.moveToNext()) {
+                    long itemId = lines.getLong(0);
+                    double quantity = lines.getDouble(2);
+                    if ("شراء".equals(type)) {
+                        double requested = 0;
+                        try (Cursor all = db.rawQuery("SELECT item_id, quantity FROM invoice_lines WHERE invoice_id=?", new String[]{String.valueOf(invoiceId)})) {
+                            while (all.moveToNext()) if (all.getLong(0) == itemId) requested += all.getDouble(1);
+                        }
+                        try (Cursor stock = db.rawQuery("SELECT stock FROM items WHERE _id=?", new String[]{String.valueOf(itemId)})) {
+                            if (!stock.moveToFirst() || stock.getDouble(0) < requested) {
+                                throw new IllegalArgumentException("لا يمكن حذف الفاتورة لأن الكمية المشتراة لم تعد متوفرة بالمخزون");
+                            }
+                        }
+                    }
+                    String operator = "بيع".equals(type) ? "+" : "-";
+                    db.execSQL("UPDATE items SET stock = stock " + operator + " ? WHERE _id=?", new Object[]{quantity, itemId});
+                }
+            }
+            String partyTable = "بيع".equals(type) ? "customers" : "suppliers";
+            db.execSQL("UPDATE " + partyTable + " SET balance = balance - ? WHERE name = ? COLLATE NOCASE", new Object[]{total, party});
+            db.delete("invoice_lines", "invoice_id=?", new String[]{String.valueOf(invoiceId)});
+            db.delete("invoices", "_id=?", new String[]{String.valueOf(invoiceId)});
+            db.setTransactionSuccessful();
+        } finally { db.endTransaction(); }
+    }
+
     public long saveCashMovement(long boxId, String boxName, String type, double amount, String notes) {
         if (boxId <= 0 || amount <= 0 || !("إيداع".equals(type) || "سحب".equals(type))) {
             throw new IllegalArgumentException("اختر الصندوق وأدخل مبلغًا موجبًا");
