@@ -194,7 +194,8 @@ public final class MainActivity extends Activity {
         LinearLayout rows = new LinearLayout(this);
         rows.setOrientation(LinearLayout.VERTICAL);
         page.addView(rows, matchWrap());
-        Runnable render = () -> {
+        Runnable[] render = new Runnable[1];
+        render[0] = () -> {
             rows.removeAllViews();
             String q = search.getText().toString().trim().toLowerCase(Locale.ROOT);
             try (Cursor c = database.list(table)) {
@@ -221,7 +222,7 @@ public final class MainActivity extends Activity {
                             .setNegativeButton("إلغاء", null)
                             .setPositiveButton("حذف", (d, w) -> {
                                 database.delete(table, id);
-                                render.run();
+                                render[0].run();
                                 toast("تم الحذف");
                             }).show();
                         return true;
@@ -233,10 +234,10 @@ public final class MainActivity extends Activity {
         };
         search.addTextChangedListener(new TextWatcher() {
             public void beforeTextChanged(CharSequence s, int st, int count, int after) {}
-            public void onTextChanged(CharSequence s, int st, int before, int count) { render.run(); }
+            public void onTextChanged(CharSequence s, int st, int before, int count) { render[0].run(); }
             public void afterTextChanged(Editable e) {}
         });
-        render.run();
+        render[0].run();
     }
 
     private void showEntityForm(String table, Long editId) {
