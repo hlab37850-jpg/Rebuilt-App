@@ -53,6 +53,11 @@ public final class MainActivity extends Activity {
         modules.add("فواتير الشراء");
         modules.add("القيود اليومية");
         modules.add("التصنيفات");
+        modules.add("أنواع الأصناف");
+        modules.add("الوحدات");
+        modules.add("العملات");
+        modules.add("الضرائب");
+        modules.add("الفروع");
         modules.add("الدليل المحاسبي");
         modules.add("الصناديق والبنوك");
         modules.add("النفقات والإيرادات");
@@ -118,6 +123,11 @@ public final class MainActivity extends Activity {
             case "الموردون": showEntityList("suppliers", "الموردون"); break;
             case "الأصناف": showEntityList("items", "الأصناف"); break;
             case "التصنيفات": showEntityList("groups_catalog", "التصنيفات"); break;
+            case "أنواع الأصناف": showEntityList("item_types", "أنواع الأصناف"); break;
+            case "الوحدات": showEntityList("units", "الوحدات"); break;
+            case "العملات": showEntityList("currencies", "العملات"); break;
+            case "الضرائب": showEntityList("taxes", "الضرائب"); break;
+            case "الفروع": showEntityList("branches", "الفروع"); break;
             case "الدليل المحاسبي": showEntityList("accounts", "الدليل المحاسبي"); break;
             case "الصناديق والبنوك": showEntityList("cash_boxes", "الصناديق والبنوك"); break;
             case "المخازن": showEntityList("warehouses", "المخازن"); break;
@@ -223,8 +233,14 @@ public final class MainActivity extends Activity {
                         subtitle = safe(c, "type") + "  •  الرصيد الافتتاحي: " + number(c, "opening_balance");
                     } else if ("cash_boxes".equals(table)) {
                         subtitle = "العملة: " + safe(c, "currency") + "  •  الرصيد: " + number(c, "balance");
-                    } else if ("warehouses".equals(table)) {
+                    } else if ("warehouses".equals(table) || "branches".equals(table)) {
                         subtitle = safe(c, "location");
+                    } else if ("units".equals(table)) {
+                        subtitle = safe(c, "abbreviation");
+                    } else if ("currencies".equals(table)) {
+                        subtitle = "الرمز: " + safe(c, "code") + " • سعر الصرف: " + number(c, "exchange_rate");
+                    } else if ("taxes".equals(table)) {
+                        subtitle = "النسبة: " + number(c, "rate") + "%";
                     } else {
                         subtitle = safe(c, "phone") + "  •  الرصيد الحالي: " + number(c, "balance");
                     }
@@ -272,9 +288,21 @@ public final class MainActivity extends Activity {
         } else if ("cash_boxes".equals(table)) {
             labels = new String[]{"اسم الصندوق/البنك", "العملة", "الرصيد"};
             columns = new String[]{"name", "currency", "balance"};
-        } else if ("warehouses".equals(table)) {
-            labels = new String[]{"اسم المخزن", "الموقع"};
+        } else if ("warehouses".equals(table) || "branches".equals(table)) {
+            labels = new String[]{"الاسم", "الموقع"};
             columns = new String[]{"name", "location"};
+        } else if ("item_types".equals(table)) {
+            labels = new String[]{"اسم نوع الصنف"};
+            columns = new String[]{"name"};
+        } else if ("units".equals(table)) {
+            labels = new String[]{"اسم الوحدة", "الاختصار"};
+            columns = new String[]{"name", "abbreviation"};
+        } else if ("currencies".equals(table)) {
+            labels = new String[]{"اسم العملة", "رمز العملة", "سعر الصرف مقابل العملة الأساسية"};
+            columns = new String[]{"name", "code", "exchange_rate"};
+        } else if ("taxes".equals(table)) {
+            labels = new String[]{"اسم الضريبة", "النسبة المئوية"};
+            columns = new String[]{"name", "rate"};
         } else {
             labels = new String[]{"اسم الحساب", "رقم الهاتف", "العنوان", "الرصيد الافتتاحي"};
             columns = new String[]{"name", "phone", "address", "opening_balance"};
@@ -305,7 +333,8 @@ public final class MainActivity extends Activity {
                     String value = fields[i].getText().toString().trim();
                     if (i == 0 || "phone".equals(columns[i]) || "address".equals(columns[i])
                         || "code".equals(columns[i]) || "unit".equals(columns[i]) || "kind".equals(columns[i])
-                        || "type".equals(columns[i]) || "currency".equals(columns[i]) || "location".equals(columns[i])) {
+                        || "type".equals(columns[i]) || "currency".equals(columns[i]) || "location".equals(columns[i])
+                        || "abbreviation".equals(columns[i]) || "code".equals(columns[i])) {
                         values.put(columns[i], value);
                     } else {
                         try {
@@ -683,6 +712,11 @@ public final class MainActivity extends Activity {
         if ("accounts".equals(table)) return "حساب";
         if ("cash_boxes".equals(table)) return "صندوق/بنك";
         if ("warehouses".equals(table)) return "مخزن";
+        if ("branches".equals(table)) return "فرع";
+        if ("item_types".equals(table)) return "نوع صنف";
+        if ("units".equals(table)) return "وحدة";
+        if ("currencies".equals(table)) return "عملة";
+        if ("taxes".equals(table)) return "ضريبة";
         return "تصنيف";
     }
     private void addHeading(String title, String subtitle) {
