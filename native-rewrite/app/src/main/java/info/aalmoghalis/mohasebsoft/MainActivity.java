@@ -34,7 +34,7 @@ import java.util.List;
 import java.util.Locale;
 
 public final class MainActivity extends Activity {
-    private static final int BLUE = Color.rgb(51, 90, 184);
+    private static final int BLUE = Color.rgb(10, 110, 169);
     private static final int DARK = Color.rgb(32, 42, 65);
     private static final int PALE = Color.rgb(243, 246, 252);
     private DatabaseHelper database;
@@ -226,7 +226,7 @@ public final class MainActivity extends Activity {
                     } else if ("warehouses".equals(table)) {
                         subtitle = safe(c, "location");
                     } else {
-                        subtitle = safe(c, "phone") + "  •  الرصيد الافتتاحي: " + number(c, "opening_balance");
+                        subtitle = safe(c, "phone") + "  •  الرصيد الحالي: " + number(c, "balance");
                     }
                     LinearLayout item = card();
                     item.addView(text(name, 16, DARK, true));
