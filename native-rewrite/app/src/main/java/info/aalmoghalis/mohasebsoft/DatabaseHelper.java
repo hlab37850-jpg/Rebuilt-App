@@ -9,7 +9,7 @@ import java.util.List;
 
 public final class DatabaseHelper extends SQLiteOpenHelper {
     private static final String DB_NAME = "mohaseb_soft.db";
-    private static final int DB_VERSION = 3;
+    private static final int DB_VERSION = 4;
 
     public DatabaseHelper(Context context) {
         super(context, DB_NAME, null, DB_VERSION);
@@ -19,7 +19,7 @@ public final class DatabaseHelper extends SQLiteOpenHelper {
         db.execSQL("CREATE TABLE IF NOT EXISTS customers (_id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL, phone TEXT, address TEXT, opening_balance REAL NOT NULL DEFAULT 0, balance REAL NOT NULL DEFAULT 0)");
         db.execSQL("CREATE TABLE IF NOT EXISTS suppliers (_id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL, phone TEXT, address TEXT, opening_balance REAL NOT NULL DEFAULT 0, balance REAL NOT NULL DEFAULT 0)");
         db.execSQL("CREATE TABLE IF NOT EXISTS items (_id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL, code TEXT, unit TEXT, purchase_price REAL NOT NULL DEFAULT 0, sale_price REAL NOT NULL DEFAULT 0, stock REAL NOT NULL DEFAULT 0)");
-        db.execSQL("CREATE TABLE IF NOT EXISTS invoices (_id INTEGER PRIMARY KEY AUTOINCREMENT, type TEXT NOT NULL, party_name TEXT NOT NULL, created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP, subtotal REAL NOT NULL DEFAULT 0, discount REAL NOT NULL DEFAULT 0, tax_rate REAL NOT NULL DEFAULT 0, tax_amount REAL NOT NULL DEFAULT 0, total REAL NOT NULL DEFAULT 0, notes TEXT)");
+        db.execSQL("CREATE TABLE IF NOT EXISTS invoices (_id INTEGER PRIMARY KEY AUTOINCREMENT, type TEXT NOT NULL, party_name TEXT NOT NULL, created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP, subtotal REAL NOT NULL DEFAULT 0, discount REAL NOT NULL DEFAULT 0, tax_rate REAL NOT NULL DEFAULT 0, tax_amount REAL NOT NULL DEFAULT 0, currency_name TEXT NOT NULL DEFAULT 'محلي', exchange_rate REAL NOT NULL DEFAULT 1, total REAL NOT NULL DEFAULT 0, notes TEXT)");
         db.execSQL("CREATE TABLE IF NOT EXISTS invoice_lines (_id INTEGER PRIMARY KEY AUTOINCREMENT, invoice_id INTEGER NOT NULL, item_id INTEGER NOT NULL, item_name TEXT NOT NULL, quantity REAL NOT NULL, price REAL NOT NULL, line_total REAL NOT NULL, FOREIGN KEY(invoice_id) REFERENCES invoices(_id) ON DELETE CASCADE)");
         db.execSQL("CREATE TABLE IF NOT EXISTS transactions (_id INTEGER PRIMARY KEY AUTOINCREMENT, account_name TEXT NOT NULL, description TEXT, debit REAL NOT NULL DEFAULT 0, credit REAL NOT NULL DEFAULT 0, created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP)");
         db.execSQL("CREATE TABLE IF NOT EXISTS groups_catalog (_id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL UNIQUE, kind TEXT NOT NULL DEFAULT 'عام')");
@@ -45,6 +45,8 @@ public final class DatabaseHelper extends SQLiteOpenHelper {
         ensureColumn(db, "invoices", "discount", "REAL NOT NULL DEFAULT 0");
         ensureColumn(db, "invoices", "tax_rate", "REAL NOT NULL DEFAULT 0");
         ensureColumn(db, "invoices", "tax_amount", "REAL NOT NULL DEFAULT 0");
+        ensureColumn(db, "invoices", "currency_name", "TEXT NOT NULL DEFAULT 'محلي'");
+        ensureColumn(db, "invoices", "exchange_rate", "REAL NOT NULL DEFAULT 1");
     }
 
     private void ensureColumn(SQLiteDatabase db, String table, String column, String definition) {
@@ -137,9 +139,11 @@ public final class DatabaseHelper extends SQLiteOpenHelper {
             invoice.put("type", type);
             invoice.put("party_name", party.trim());
             invoice.put("subtotal", subtotal);
-            invoice.put("discount", discount);
+            invoice.put("discount", discountBase);
             invoice.put("tax_rate", taxRate);
             invoice.put("tax_amount", taxAmount);
+            invoice.put("currency_name", currencyName == null || currencyName.trim().isEmpty() ? "محلي" : currencyName.trim());
+            invoice.put("exchange_rate", exchangeRate);
             invoice.put("total", total);
             invoice.put("notes", notes == null ? "" : notes.trim());
             long invoiceId = db.insertOrThrow("invoices", null, invoice);
@@ -178,18 +182,27 @@ public final class DatabaseHelper extends SQLiteOpenHelper {
 
     public long saveInvoiceMulti(String type, String party, List<Long> itemIds, List<String> itemNames,
                                  List<Double> quantities, List<Double> prices, String notes, double discount, double taxRate) {
-        if (discount < 0 || taxRate < 0 || taxRate > 100) throw new IllegalArgumentException("تحقق من قيمة الخصم ونسبة الضريبة (0 إلى 100)");
+        return saveInvoiceMulti(type, party, itemIds, itemNames, quantities, prices, notes, discount, taxRate, "محلي", 1);
+    }
+
+    public long saveInvoiceMulti(String type, String party, List<Long> itemIds, List<String> itemNames,
+                                 List<Double> quantities, List<Double> prices, String notes, double discount,
+                                 double taxRate, String currencyName, double exchangeRate) {
+        if (discount < 0 || taxRate < 0 || taxRate > 100 || exchangeRate <= 0)
+            throw new IllegalArgumentException("تحقق من الخصم والضريبة وسعر الصرف");
         if (party.trim().isEmpty() || itemIds.isEmpty() || itemIds.size() != itemNames.size()
             || itemIds.size() != quantities.size() || itemIds.size() != prices.size()) {
             throw new IllegalArgumentException("أدخل الطرف وأضف صنفًا واحدًا على الأقل");
         }
-        double subtotal = 0;
+        double subtotalCurrency = 0;
         for (int i = 0; i < itemIds.size(); i++) {
             if (quantities.get(i) <= 0 || prices.get(i) < 0) throw new IllegalArgumentException("تحقق من الكمية والسعر");
-            subtotal += quantities.get(i) * prices.get(i);
+            subtotalCurrency += quantities.get(i) * prices.get(i);
         }
-        if (discount > subtotal) throw new IllegalArgumentException("الخصم أكبر من إجمالي الفاتورة");
-        double taxable = subtotal - discount;
+        if (discount > subtotalCurrency) throw new IllegalArgumentException("الخصم أكبر من إجمالي الفاتورة");
+        double subtotal = subtotalCurrency * exchangeRate;
+        double discountBase = discount * exchangeRate;
+        double taxable = subtotal - discountBase;
         double taxAmount = taxable * taxRate / 100.0;
         double total = taxable + taxAmount;
         SQLiteDatabase db = getWritableDatabase();
@@ -224,7 +237,7 @@ public final class DatabaseHelper extends SQLiteOpenHelper {
                 line.put("item_name", itemNames.get(i));
                 line.put("quantity", quantity);
                 line.put("price", price);
-                line.put("line_total", quantity * price);
+                line.put("line_total", quantity * price * exchangeRate);
                 db.insertOrThrow("invoice_lines", null, line);
                 String operator = decreasesStock(type) ? "-" : "+";
                 db.execSQL("UPDATE items SET stock = stock " + operator + " ? WHERE _id=?",
