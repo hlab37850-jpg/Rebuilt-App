@@ -53,6 +53,24 @@ public final class DatabaseHelper extends SQLiteOpenHelper {
         }
     }
 
+    public double inventoryValue() {
+        try (Cursor c = getReadableDatabase().rawQuery("SELECT COALESCE(SUM(stock * sale_price),0) FROM items", null)) {
+            return c.moveToFirst() ? c.getDouble(0) : 0;
+        }
+    }
+
+    public double totalDebit() {
+        try (Cursor c = getReadableDatabase().rawQuery("SELECT COALESCE(SUM(debit),0) FROM transactions", null)) {
+            return c.moveToFirst() ? c.getDouble(0) : 0;
+        }
+    }
+
+    public double totalCredit() {
+        try (Cursor c = getReadableDatabase().rawQuery("SELECT COALESCE(SUM(credit),0) FROM transactions", null)) {
+            return c.moveToFirst() ? c.getDouble(0) : 0;
+        }
+    }
+
     public long saveEntity(String table, long id, ContentValues values) {
         if (!("customers".equals(table) || "suppliers".equals(table) || "items".equals(table) || "groups_catalog".equals(table))) {
             throw new IllegalArgumentException("Unsupported table");
@@ -94,6 +112,11 @@ public final class DatabaseHelper extends SQLiteOpenHelper {
 
             String stockSql = "UPDATE items SET stock = stock " + ("بيع".equals(type) ? "-" : "+") + " ? WHERE _id=?";
             db.execSQL(stockSql, new Object[]{quantity, itemId});
+            String partyTable = "بيع".equals(type) ? "customers" : "suppliers";
+            ContentValues balance = new ContentValues();
+            balance.put("opening_balance", total);
+            db.execSQL("UPDATE " + partyTable + " SET opening_balance = opening_balance + ? WHERE name = ? COLLATE NOCASE",
+                new Object[]{total, party.trim()});
             db.setTransactionSuccessful();
             return invoiceId;
         } finally {
