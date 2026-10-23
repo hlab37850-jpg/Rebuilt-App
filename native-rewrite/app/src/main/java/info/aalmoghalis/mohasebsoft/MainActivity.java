@@ -130,7 +130,7 @@ public final class MainActivity extends Activity {
         addMetric("الأصناف", database.count("items"), "items");
         addMetric("الفواتير", database.count("invoices"), "invoices");
         addMetric("إجمالي الفواتير", database.sum("invoices", "total"), "invoices");
-        addMetric("قيمة المخزون التقديرية", database.sum("items", "sale_price"), "items");
+        addMetric("قيمة المخزون التقديرية", database.inventoryValue(), "items");
         TextView section = text("الوصول السريع", 17, DARK, true);
         section.setPadding(0, dp(16), 0, dp(8));
         page.addView(section);
@@ -200,8 +200,7 @@ public final class MainActivity extends Activity {
             try (Cursor c = database.list(table)) {
                 while (c.moveToNext()) {
                     long id = c.getLong(c.getColumnIndexOrThrow("_id"));
-                    String name = c.getString(c.getColumnIndexOrThrow("name"));
-                    if (name == null) name = "";
+                    final String name = c.isNull(c.getColumnIndexOrThrow("name")) ? "" : c.getString(c.getColumnIndexOrThrow("name"));
                     if (!name.toLowerCase(Locale.ROOT).contains(q)) continue;
                     String subtitle;
                     if ("items".equals(table)) {
@@ -438,7 +437,9 @@ public final class MainActivity extends Activity {
         addMetric("عدد الفواتير", database.count("invoices"), "invoices");
         addMetric("إجمالي قيمة الفواتير", database.sum("invoices", "total"), "invoices");
         addMetric("إجمالي الكميات بالمخزون", database.sum("items", "stock"), "items");
-        addMetric("إجمالي أسعار البيع المسجلة", database.sum("items", "sale_price"), "items");
+        addMetric("قيمة المخزون بسعر البيع", database.inventoryValue(), "items");
+        addMetric("إجمالي المدين في القيود", database.totalDebit(), "transactions");
+        addMetric("إجمالي الدائن في القيود", database.totalCredit(), "transactions");
         TextView disclaimer = text("هذه مؤشرات إجمالية وليست بديلًا عن التقارير المحاسبية التفصيلية وميزان المراجعة.", 12, Color.GRAY, false);
         disclaimer.setPadding(0, dp(12), 0, 0);
         page.addView(disclaimer);
