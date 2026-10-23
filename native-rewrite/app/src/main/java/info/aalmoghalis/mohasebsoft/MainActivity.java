@@ -620,7 +620,17 @@ public final class MainActivity extends Activity {
     private void printInvoice(long id, String party, double total) {
         StringBuilder html = new StringBuilder("<html><meta charset='utf-8'><body dir='rtl' style='font-family:sans-serif;padding:24px'>");
         html.append("<h2>محاسب بيه</h2><h3>فاتورة رقم ").append(id).append("</h3>");
-        html.append("<p>الطرف: ").append(htmlEscape(party)).append("</p><table style='width:100%;border-collapse:collapse' border='1' cellpadding='8'><tr><th>الصنف</th><th>الكمية</th><th>السعر</th><th>الإجمالي</th></tr>");
+        html.append("<p>الطرف: ").append(htmlEscape(party)).append("</p>");
+        try (Cursor invoice = database.getReadableDatabase().rawQuery(
+            "SELECT subtotal, discount, tax_rate, tax_amount FROM invoices WHERE _id=?", new String[]{String.valueOf(id)})) {
+            if (invoice.moveToFirst()) {
+                html.append("<p>قبل الخصم: ").append(money(invoice.getDouble(0)))
+                    .append(" | الخصم: ").append(money(invoice.getDouble(1)))
+                    .append(" | الضريبة ").append(money(invoice.getDouble(2))).append("%: ")
+                    .append(money(invoice.getDouble(3))).append("</p>");
+            }
+        }
+        html.append("<table style='width:100%;border-collapse:collapse' border='1' cellpadding='8'><tr><th>الصنف</th><th>الكمية</th><th>السعر</th><th>الإجمالي</th></tr>");
         try (Cursor c = database.invoiceLines(id)) {
             while (c.moveToNext()) {
                 html.append("<tr><td>").append(htmlEscape(c.getString(0))).append("</td><td>")
