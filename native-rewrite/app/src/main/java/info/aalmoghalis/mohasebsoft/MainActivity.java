@@ -367,40 +367,69 @@ public final class MainActivity extends Activity {
         }
         LinearLayout form = formLayout();
         EditText party = input("اسم العميل/المورد");
-        EditText qty = input("الكمية");
-        qty.setInputType(8194);
-        EditText price = input("سعر الوحدة");
-        price.setInputType(8194);
         EditText notes = input("ملاحظات (اختياري)");
-        Spinner picker = new Spinner(this);
-        ArrayAdapter<String> adapter = new ArrayAdapter<>(this, android.R.layout.simple_spinner_item, names);
-        adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
-        picker.setAdapter(adapter);
-        picker.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
-            public void onNothingSelected(AdapterView<?> parent) {}
-            public void onItemSelected(AdapterView<?> parent, View view, int position, long id) {
-                price.setText(String.valueOf(prices.get(position)));
-            }
-        });
-        form.addView(text("الصنف", 13, DARK, true));
-        form.addView(picker, matchWrap());
+        LinearLayout linesContainer = new LinearLayout(this);
+        linesContainer.setOrientation(LinearLayout.VERTICAL);
+        List<InvoiceLineInput> lines = new ArrayList<>();
+        addInvoiceLineRow(linesContainer, names, prices, lines);
+        Button addLine = button("+ إضافة صنف آخر", Color.WHITE, BLUE);
+        addLine.setOnClickListener(v -> addInvoiceLineRow(linesContainer, names, prices, lines));
         form.addView(party, matchWrap());
-        form.addView(qty, matchWrap());
-        form.addView(price, matchWrap());
+        form.addView(text("تفاصيل الأصناف", 15, DARK, true));
+        form.addView(linesContainer, matchWrap());
+        form.addView(addLine, matchWrap());
         form.addView(notes, matchWrap());
         new AlertDialog.Builder(this).setTitle("فاتورة " + type).setView(form)
             .setNegativeButton("إلغاء", null)
             .setPositiveButton("حفظ الفاتورة", (d, w) -> {
                 try {
                     String partyName = party.getText().toString().trim();
-                    double quantity = Double.parseDouble(qty.getText().toString().trim().replace(',', '.'));
-                    double unitPrice = Double.parseDouble(price.getText().toString().trim().replace(',', '.'));
-                    int ix = picker.getSelectedItemPosition();
-                    database.saveInvoice(type, partyName, ids.get(ix), names.get(ix), quantity, unitPrice, notes.getText().toString());
+                    List<Long> chosenIds = new ArrayList<>();
+                    List<String> chosenNames = new ArrayList<>();
+                    List<Double> quantities = new ArrayList<>();
+                    List<Double> chosenPrices = new ArrayList<>();
+                    for (InvoiceLineInput line : lines) {
+                        int ix = line.picker.getSelectedItemPosition();
+                        if (ix < 0 || ix >= ids.size()) throw new IllegalArgumentException("اختر صنفًا لكل سطر");
+                        chosenIds.add(ids.get(ix));
+                        chosenNames.add(names.get(ix));
+                        quantities.add(parseNumber(line.quantity.getText().toString()));
+                        chosenPrices.add(parseNumber(line.price.getText().toString()));
+                    }
+                    database.saveInvoiceMulti(type, partyName, chosenIds, chosenNames, quantities, chosenPrices, notes.getText().toString());
                     toast("تم حفظ الفاتورة وتحديث المخزون");
                     navigate(currentModule);
                 } catch (Exception ex) { toast("تعذر حفظ الفاتورة: " + ex.getMessage()); }
             }).show();
+    }
+
+    private void addInvoiceLineRow(LinearLayout parent, List<String> names, List<Double> prices,
+                                   List<InvoiceLineInput> lines) {
+        LinearLayout row = card();
+        Spinner picker = new Spinner(this);
+        ArrayAdapter<String> adapter = new ArrayAdapter<>(this, android.R.layout.simple_spinner_item, names);
+        adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
+        picker.setAdapter(adapter);
+        EditText quantity = input("الكمية");
+        quantity.setInputType(8194);
+        EditText price = input("سعر الوحدة");
+        price.setInputType(8194);
+        picker.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
+            public void onNothingSelected(AdapterView<?> parent) {}
+            public void onItemSelected(AdapterView<?> parent, View view, int position, long id) {
+                if (position >= 0 && position < prices.size()) price.setText(String.valueOf(prices.get(position)));
+            }
+        });
+        row.addView(text("الصنف", 12, Color.GRAY, true));
+        row.addView(picker, matchWrap());
+        row.addView(quantity, matchWrap());
+        row.addView(price, matchWrap());
+        parent.addView(row, matchWrap());
+        InvoiceLineInput line = new InvoiceLineInput();
+        line.picker = picker;
+        line.quantity = quantity;
+        line.price = price;
+        lines.add(line);
     }
 
     private void showInvoiceDetails(long id, String party, double total) {
@@ -628,6 +657,12 @@ public final class MainActivity extends Activity {
             writer.flush();
             toast("تم تصدير البيانات");
         } catch (Exception ex) { toast("فشل التصدير: " + ex.getMessage()); }
+    }
+
+    private static final class InvoiceLineInput {
+        Spinner picker;
+        EditText quantity;
+        EditText price;
     }
 
     private String csv(String value) { return "\"" + value.replace("\"", "\"\"") + "\""; }
