@@ -530,6 +530,13 @@ public final class MainActivity extends Activity {
         }
         new AlertDialog.Builder(this).setTitle("تفاصيل الفاتورة #" + id).setMessage(details.toString())
             .setNeutralButton("طباعة", (dialog, which) -> printInvoice(id, party, total))
+            .setNegativeButton("مشاركة", (dialog, which) -> {
+                Intent send = new Intent(Intent.ACTION_SEND);
+                send.setType("text/plain");
+                send.putExtra(Intent.EXTRA_SUBJECT, "فاتورة رقم " + id);
+                send.putExtra(Intent.EXTRA_TEXT, details.toString());
+                startActivity(Intent.createChooser(send, "مشاركة الفاتورة"));
+            })
             .setPositiveButton("إغلاق", null).show();
     }
 
