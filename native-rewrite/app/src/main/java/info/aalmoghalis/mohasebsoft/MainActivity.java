@@ -73,6 +73,7 @@ public final class MainActivity extends Activity {
         modules.add("الفروع");
         modules.add("الدليل المحاسبي");
         modules.add("الصناديق والبنوك");
+        modules.add("حركة الصندوق");
         modules.add("النفقات والإيرادات");
         modules.add("المخازن");
         modules.add("حركة الأصناف");
@@ -164,6 +165,7 @@ public final class MainActivity extends Activity {
             case "الفروع": showEntityList("branches", "الفروع"); break;
             case "الدليل المحاسبي": showEntityList("accounts", "الدليل المحاسبي"); break;
             case "الصناديق والبنوك": showEntityList("cash_boxes", "الصناديق والبنوك"); break;
+            case "حركة الصندوق": showCashMovements(); break;
             case "المخازن": showEntityList("warehouses", "المخازن"); break;
             case "النفقات والإيرادات": showExpenses(); break;
             case "حركة الأصناف": showItemMovements(); break;
@@ -606,6 +608,60 @@ public final class MainActivity extends Activity {
             }).show();
     }
 
+    private void showCashMovements() {
+        page.removeAllViews();
+        addHeading("حركة الصندوق", "تسجيل الإيداع والسحب ومتابعة الرصيد");
+        Button add = button("+ حركة نقدية", BLUE, Color.WHITE);
+        page.addView(add, matchWrap());
+        add.setOnClickListener(v -> showCashMovementForm());
+        LinearLayout rows = new LinearLayout(this);
+        rows.setOrientation(LinearLayout.VERTICAL);
+        page.addView(rows);
+        try (Cursor c = database.list("cash_movements")) {
+            while (c.moveToNext()) {
+                LinearLayout row = card();
+                row.addView(text(safe(c, "box_name") + " • " + safe(c, "type"), 15, DARK, true));
+                row.addView(text(safe(c, "created_at") + " • " + money(c.getDouble(c.getColumnIndexOrThrow("amount"))) + " • " + safe(c, "notes"), 12, Color.GRAY, false));
+                rows.addView(row);
+            }
+        }
+        if (rows.getChildCount() == 0) rows.addView(text("لا توجد حركات نقدية مسجلة.", 14, Color.GRAY, false));
+    }
+
+    private void showCashMovementForm() {
+        List<Long> ids = new ArrayList<>();
+        List<String> names = new ArrayList<>();
+        try (Cursor c = database.list("cash_boxes")) {
+            while (c.moveToNext()) { ids.add(c.getLong(c.getColumnIndexOrThrow("_id"))); names.add(c.getString(c.getColumnIndexOrThrow("name"))); }
+        }
+        if (names.isEmpty()) {
+            new AlertDialog.Builder(this).setMessage("أضف صندوقًا أو بنكًا أولًا.")
+                .setPositiveButton("إضافة صندوق", (d, w) -> navigate("الصناديق والبنوك")).setNegativeButton("إلغاء", null).show();
+            return;
+        }
+        LinearLayout form = formLayout();
+        Spinner boxPicker = new Spinner(this);
+        boxPicker.setAdapter(new ArrayAdapter<>(this, android.R.layout.simple_spinner_dropdown_item, names));
+        Spinner typePicker = new Spinner(this);
+        typePicker.setAdapter(new ArrayAdapter<>(this, android.R.layout.simple_spinner_dropdown_item, new String[]{"إيداع", "سحب"}));
+        EditText amount = input("المبلغ");
+        amount.setInputType(8194);
+        EditText notes = input("البيان");
+        form.addView(text("الصندوق/البنك", 13, DARK, true)); form.addView(boxPicker, matchWrap());
+        form.addView(text("نوع الحركة", 13, DARK, true)); form.addView(typePicker, matchWrap());
+        form.addView(amount, matchWrap()); form.addView(notes, matchWrap());
+        new AlertDialog.Builder(this).setTitle("حركة نقدية").setView(form).setNegativeButton("إلغاء", null)
+            .setPositiveButton("حفظ", (d, w) -> {
+                try {
+                    int ix = boxPicker.getSelectedItemPosition();
+                    database.saveCashMovement(ids.get(ix), names.get(ix), String.valueOf(typePicker.getSelectedItem()),
+                        parseNumber(amount.getText().toString()), notes.getText().toString());
+                    toast("تم تسجيل الحركة وتحديث رصيد الصندوق");
+                    navigate("حركة الصندوق");
+                } catch (Exception ex) { toast("تعذر حفظ الحركة: " + ex.getMessage()); }
+            }).show();
+    }
+
     private void showExpenses() {
         page.removeAllViews();
         addHeading("النفقات والإيرادات", "تسجيل الحركات النقدية ومراجعة إجمالياتها");
@@ -730,7 +786,7 @@ public final class MainActivity extends Activity {
         addReportLink("أرباح الأصناف (تقديري)", this::showItemProfitReport);
         addReportLink("العمليات اليومية", this::showDailyOperations);
         addReportLink("القيود اليومية", () -> navigate("القيود اليومية"));
-        addReportLink("حركة الصندوق", () -> navigate("الصناديق والبنوك"));
+        addReportLink("حركة الصندوق", this::showCashMovements);
         addReportLink("حركة الحسابات", this::showAccountBalances);
         addReportLink("إجمالي التصنيفات", () -> navigate("التصنيفات"));
         addReportLink("أسعار العملات", () -> navigate("العملات"));
@@ -931,7 +987,7 @@ public final class MainActivity extends Activity {
         if (requestCode != 41) return;
         try (OutputStream out = getContentResolver().openOutputStream(data.getData());
              OutputStreamWriter writer = new OutputStreamWriter(out, StandardCharsets.UTF_8)) {
-            String[] tables = {"customers", "suppliers", "items", "invoices", "invoice_lines", "transactions", "payments", "expenses", "groups_catalog", "accounts", "cash_boxes", "warehouses", "item_movements", "currencies", "units", "taxes", "branches", "item_types"};
+            String[] tables = {"customers", "suppliers", "items", "invoices", "invoice_lines", "transactions", "payments", "expenses", "groups_catalog", "accounts", "cash_boxes", "warehouses", "item_movements", "currencies", "units", "taxes", "branches", "item_types", "cash_movements"};
             for (String table : tables) {
                 writer.write("\n# " + table + "\n");
                 try (Cursor c = database.list(table)) {
