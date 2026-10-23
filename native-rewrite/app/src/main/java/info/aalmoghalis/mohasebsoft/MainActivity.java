@@ -713,7 +713,7 @@ public final class MainActivity extends Activity {
 
     private void showReports() {
         page.removeAllViews();
-        addHeading("التقارير", "ملخص مباشر من قاعدة البيانات المحلية");
+        addHeading("التقارير", "ملخص مباشر من البيانات المسجلة");
         addMetric("عدد العملاء", database.count("customers"), "customers");
         addMetric("عدد الموردين", database.count("suppliers"), "suppliers");
         addMetric("عدد الأصناف", database.count("items"), "items");
@@ -721,13 +721,128 @@ public final class MainActivity extends Activity {
         addMetric("إجمالي قيمة الفواتير", database.sum("invoices", "total"), "invoices");
         addMetric("إجمالي المصروفات", database.sumExpenses("مصروف"), "transactions");
         addMetric("إجمالي الإيرادات", database.sumExpenses("إيراد"), "transactions");
-        addMetric("إجمالي الكميات بالمخزون", database.sum("items", "stock"), "items");
         addMetric("قيمة المخزون بسعر البيع", database.inventoryValue(), "items");
-        addMetric("إجمالي المدين في القيود", database.totalDebit(), "transactions");
-        addMetric("إجمالي الدائن في القيود", database.totalCredit(), "transactions");
-        TextView disclaimer = text("هذه مؤشرات إجمالية وليست بديلًا عن التقارير المحاسبية التفصيلية وميزان المراجعة.", 12, Color.GRAY, false);
+        TextView section = text("التقارير التفصيلية", 17, DARK, true);
+        section.setPadding(0, dp(16), 0, dp(8));
+        page.addView(section);
+        addReportLink("المخزون المتبقي", () -> navigate("الأصناف"));
+        addReportLink("أرصدة الحسابات", this::showAccountBalances);
+        addReportLink("أرباح الأصناف (تقديري)", this::showItemProfitReport);
+        addReportLink("العمليات اليومية", this::showDailyOperations);
+        addReportLink("القيود اليومية", () -> navigate("القيود اليومية"));
+        addReportLink("حركة الصندوق", () -> navigate("الصناديق والبنوك"));
+        addReportLink("حركة الحسابات", this::showAccountBalances);
+        addReportLink("إجمالي التصنيفات", () -> navigate("التصنيفات"));
+        addReportLink("أسعار العملات", () -> navigate("العملات"));
+        addReportLink("رأس المال العامل (تقديري)", this::showCapitalReport);
+        addReportLink("المبيعات حسب الصنف", () -> showItemSalesReport("بيع"));
+        addReportLink("المشتريات حسب الصنف", () -> showItemSalesReport("شراء"));
+        addReportLink("تفاصيل حركة الأصناف", () -> navigate("حركة الأصناف"));
+        TextView disclaimer = text("تقارير الأرباح ورأس المال تقديرية؛ لا تُحسب تكلفة تاريخية للفاتورة إلا إذا كانت محفوظة وقت البيع.", 12, Color.GRAY, false);
         disclaimer.setPadding(0, dp(12), 0, 0);
         page.addView(disclaimer);
+    }
+
+    private void addReportLink(String label, Runnable action) {
+        Button b = button(label, Color.WHITE, BLUE);
+        b.setGravity(Gravity.RIGHT | Gravity.CENTER_VERTICAL);
+        b.setPadding(dp(14), dp(10), dp(14), dp(10));
+        page.addView(b, matchWrap());
+        b.setOnClickListener(v -> action.run());
+    }
+
+    private void showAccountBalances() {
+        page.removeAllViews();
+        addHeading("أرصدة الحسابات", "الأرصدة الحالية للعملاء والموردين");
+        for (String table : new String[]{"customers", "suppliers"}) {
+            page.addView(text("customers".equals(table) ? "العملاء" : "الموردون", 17, BLUE, true));
+            try (Cursor c = database.list(table)) {
+                while (c.moveToNext()) {
+                    LinearLayout row = card();
+                    row.addView(text(safe(c, "name"), 15, DARK, true));
+                    row.addView(text("الرصيد الحالي: " + money(c.getDouble(c.getColumnIndexOrThrow("balance"))), 13, Color.GRAY, false));
+                    page.addView(row);
+                }
+            }
+        }
+    }
+
+    private void showItemProfitReport() {
+        page.removeAllViews();
+        addHeading("أرباح الأصناف (تقديري)", "فرق سعر البيع والشراء الحالي مضروبًا في المخزون الحالي");
+        try (Cursor c = database.getReadableDatabase().rawQuery(
+            "SELECT name, stock, purchase_price, sale_price, (sale_price-purchase_price)*stock AS estimate FROM items ORDER BY name COLLATE NOCASE", null)) {
+            while (c.moveToNext()) {
+                LinearLayout row = card();
+                row.addView(text(c.getString(0), 15, DARK, true));
+                row.addView(text("المخزون: " + money(c.getDouble(1)) + " • هامش الوحدة: " +
+                    money(c.getDouble(3) - c.getDouble(2)) + " • هامش المخزون: " + money(c.getDouble(4)), 12, Color.GRAY, false));
+                page.addView(row);
+            }
+        }
+        page.addView(text("هذا تقدير مبني على الأسعار الحالية، وليس ربحًا محققًا تاريخيًا.", 12, Color.GRAY, false));
+    }
+
+    private void showDailyOperations() {
+        page.removeAllViews();
+        addHeading("العمليات اليومية", "الفواتير والمصروفات والإيرادات المسجلة");
+        page.addView(text("الفواتير", 17, BLUE, true));
+        try (Cursor c = database.list("invoices")) {
+            while (c.moveToNext()) {
+                LinearLayout row = card();
+                row.addView(text("#" + c.getLong(c.getColumnIndexOrThrow("_id")) + " • " +
+                    safe(c, "type") + " • " + safe(c, "party_name"), 15, DARK, true));
+                row.addView(text(safe(c, "created_at") + " • " + money(c.getDouble(c.getColumnIndexOrThrow("total"))), 12, Color.GRAY, false));
+                page.addView(row);
+            }
+        }
+        page.addView(text("النفقات والإيرادات", 17, BLUE, true));
+        try (Cursor c = database.list("expenses")) {
+            while (c.moveToNext()) {
+                LinearLayout row = card();
+                row.addView(text(safe(c, "type") + " • " + safe(c, "title"), 15, DARK, true));
+                row.addView(text(safe(c, "created_at") + " • " + money(c.getDouble(c.getColumnIndexOrThrow("amount"))), 12, Color.GRAY, false));
+                page.addView(row);
+            }
+        }
+    }
+
+    private void showItemSalesReport(String type) {
+        page.removeAllViews();
+        addHeading(("بيع".equals(type) ? "المبيعات" : "المشتريات") + " حسب الصنف", "تجميع كميات وقيم الفواتير المحفوظة");
+        try (Cursor c = database.getReadableDatabase().rawQuery(
+            "SELECT l.item_name, COALESCE(SUM(l.quantity),0), COALESCE(SUM(l.line_total),0) " +
+            "FROM invoice_lines l INNER JOIN invoices i ON i._id=l.invoice_id WHERE i.type=? GROUP BY l.item_name ORDER BY l.item_name",
+            new String[]{type})) {
+            while (c.moveToNext()) {
+                LinearLayout row = card();
+                row.addView(text(c.getString(0), 15, DARK, true));
+                row.addView(text("الكمية: " + money(c.getDouble(1)) + " • الإجمالي: " + money(c.getDouble(2)), 13, Color.GRAY, false));
+                page.addView(row);
+            }
+        }
+    }
+
+    private void showCapitalReport() {
+        page.removeAllViews();
+        addHeading("رأس المال العامل (تقديري)", "ملخص مبسط من أرصدة الحسابات والمخزون والحركات المسجلة");
+        double customerBalances = accountBalanceTotal("customers");
+        double supplierBalances = accountBalanceTotal("suppliers");
+        double stock = database.inventoryValue();
+        double result = customerBalances + stock - supplierBalances + database.sumExpenses("إيراد") - database.sumExpenses("مصروف");
+        addMetric("أرصدة العملاء", customerBalances, "customers");
+        addMetric("قيمة المخزون بسعر البيع", stock, "items");
+        addMetric("أرصدة الموردين", supplierBalances, "suppliers");
+        addMetric("صافي الإيرادات بعد المصروفات", database.sumExpenses("إيراد") - database.sumExpenses("مصروف"), "transactions");
+        addMetric("المؤشر التقديري لرأس المال العامل", result, "accounts");
+    }
+
+    private double accountBalanceTotal(String table) {
+        double total = 0;
+        try (Cursor c = database.getReadableDatabase().rawQuery("SELECT COALESCE(SUM(balance),0) FROM " + table, null)) {
+            if (c.moveToFirst()) total = c.getDouble(0);
+        }
+        return total;
     }
 
     private void showSettings() {
