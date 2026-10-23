@@ -433,6 +433,19 @@ public final class MainActivity extends Activity {
                 item.addView(text("#" + id + "  •  " + party, 16, DARK, true));
                 item.addView(text(date + "  •  الإجمالي: " + money(total), 13, BLUE, false));
                 item.setOnClickListener(v -> showInvoiceDetails(id, party, total));
+                item.setOnLongClickListener(v -> {
+                    new AlertDialog.Builder(this).setTitle("حذف الفاتورة #" + id)
+                        .setMessage("سيتم عكس أثرها على المخزون ورصيد الحساب. هل تريد المتابعة؟")
+                        .setNegativeButton("إلغاء", null)
+                        .setPositiveButton("حذف", (dialog, which) -> {
+                            try {
+                                database.deleteInvoice(id);
+                                toast("تم حذف الفاتورة وعكس أثرها");
+                                navigate(currentModule);
+                            } catch (Exception ex) { toast("تعذر حذف الفاتورة: " + ex.getMessage()); }
+                        }).show();
+                    return true;
+                });
                 rows.addView(item);
             }
         }
