@@ -5,6 +5,7 @@ import android.content.Context;
 import android.database.Cursor;
 import android.database.sqlite.SQLiteDatabase;
 import android.database.sqlite.SQLiteOpenHelper;
+import java.util.List;
 
 public final class DatabaseHelper extends SQLiteOpenHelper {
     private static final String DB_NAME = "mohaseb_soft.db";
@@ -139,6 +140,59 @@ public final class DatabaseHelper extends SQLiteOpenHelper {
         } finally {
             db.endTransaction();
         }
+    }
+
+    public long saveInvoiceMulti(String type, String party, List<Long> itemIds, List<String> itemNames,
+                                 List<Double> quantities, List<Double> prices, String notes) {
+        if (party.trim().isEmpty() || itemIds.isEmpty() || itemIds.size() != itemNames.size()
+            || itemIds.size() != quantities.size() || itemIds.size() != prices.size()) {
+            throw new IllegalArgumentException("أدخل الطرف وأضف صنفًا واحدًا على الأقل");
+        }
+        double total = 0;
+        for (int i = 0; i < itemIds.size(); i++) {
+            if (quantities.get(i) <= 0 || prices.get(i) < 0) throw new IllegalArgumentException("تحقق من الكمية والسعر");
+            total += quantities.get(i) * prices.get(i);
+        }
+        SQLiteDatabase db = getWritableDatabase();
+        db.beginTransaction();
+        try {
+            if ("بيع".equals(type)) {
+                for (int i = 0; i < itemIds.size(); i++) {
+                    try (Cursor stock = db.rawQuery("SELECT stock FROM items WHERE _id=?", new String[]{String.valueOf(itemIds.get(i))})) {
+                        if (!stock.moveToFirst()) throw new IllegalArgumentException("أحد الأصناف غير موجود");
+                        if (stock.getDouble(0) < quantities.get(i)) {
+                            throw new IllegalArgumentException("المخزون غير كافٍ للصنف: " + itemNames.get(i));
+                        }
+                    }
+                }
+            }
+            ContentValues invoice = new ContentValues();
+            invoice.put("type", type);
+            invoice.put("party_name", party.trim());
+            invoice.put("total", total);
+            invoice.put("notes", notes == null ? "" : notes.trim());
+            long invoiceId = db.insertOrThrow("invoices", null, invoice);
+            for (int i = 0; i < itemIds.size(); i++) {
+                double quantity = quantities.get(i);
+                double price = prices.get(i);
+                ContentValues line = new ContentValues();
+                line.put("invoice_id", invoiceId);
+                line.put("item_id", itemIds.get(i));
+                line.put("item_name", itemNames.get(i));
+                line.put("quantity", quantity);
+                line.put("price", price);
+                line.put("line_total", quantity * price);
+                db.insertOrThrow("invoice_lines", null, line);
+                String operator = "بيع".equals(type) ? "-" : "+";
+                db.execSQL("UPDATE items SET stock = stock " + operator + " ? WHERE _id=?",
+                    new Object[]{quantity, itemIds.get(i)});
+            }
+            String partyTable = "بيع".equals(type) ? "customers" : "suppliers";
+            db.execSQL("UPDATE " + partyTable + " SET balance = balance + ? WHERE name = ? COLLATE NOCASE",
+                new Object[]{total, party.trim()});
+            db.setTransactionSuccessful();
+            return invoiceId;
+        } finally { db.endTransaction(); }
     }
 
     public long saveTransaction(String account, String description, double debit, double credit) {
