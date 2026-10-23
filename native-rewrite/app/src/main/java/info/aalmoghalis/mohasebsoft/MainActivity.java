@@ -277,6 +277,8 @@ public final class MainActivity extends Activity {
                         subtitle = "الرمز: " + safe(c, "code") + " • سعر الصرف: " + number(c, "exchange_rate");
                     } else if ("taxes".equals(table)) {
                         subtitle = "النسبة: " + number(c, "rate") + "%";
+                    } else if ("item_types".equals(table)) {
+                        subtitle = "نوع صنف";
                     } else {
                         subtitle = safe(c, "phone") + "  •  الرصيد الحالي: " + number(c, "balance");
                     }
