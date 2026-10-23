@@ -128,51 +128,11 @@ public final class DatabaseHelper extends SQLiteOpenHelper {
 
     public long saveInvoice(String type, String party, long itemId, String itemName,
                             double quantity, double price, String notes) {
-        if (quantity <= 0 || price < 0 || party.trim().isEmpty() || itemId <= 0) {
-            throw new IllegalArgumentException("تحقق من بيانات الفاتورة");
-        }
-        SQLiteDatabase db = getWritableDatabase();
-        db.beginTransaction();
-        try {
-            double total = quantity * price;
-            ContentValues invoice = new ContentValues();
-            invoice.put("type", type);
-            invoice.put("party_name", party.trim());
-            invoice.put("subtotal", subtotal);
-            invoice.put("discount", discountBase);
-            invoice.put("tax_rate", taxRate);
-            invoice.put("tax_amount", taxAmount);
-            invoice.put("currency_name", currencyName == null || currencyName.trim().isEmpty() ? "محلي" : currencyName.trim());
-            invoice.put("exchange_rate", exchangeRate);
-            invoice.put("total", total);
-            invoice.put("notes", notes == null ? "" : notes.trim());
-            long invoiceId = db.insertOrThrow("invoices", null, invoice);
-
-            ContentValues line = new ContentValues();
-            line.put("invoice_id", invoiceId);
-            line.put("item_id", itemId);
-            line.put("item_name", itemName);
-            line.put("quantity", quantity);
-            line.put("price", price);
-            line.put("line_total", total);
-            db.insertOrThrow("invoice_lines", null, line);
-
-            if ("بيع".equals(type)) {
-                try (Cursor stock = db.rawQuery("SELECT stock FROM items WHERE _id=?", new String[]{String.valueOf(itemId)})) {
-                    if (!stock.moveToFirst()) throw new IllegalArgumentException("الصنف غير موجود");
-                    if (stock.getDouble(0) < quantity) throw new IllegalArgumentException("الكمية المطلوبة أكبر من المخزون المتاح");
-                }
-            }
-            String stockSql = "UPDATE items SET stock = stock " + ("بيع".equals(type) ? "-" : "+") + " ? WHERE _id=?";
-            db.execSQL(stockSql, new Object[]{quantity, itemId});
-            String partyTable = "بيع".equals(type) ? "customers" : "suppliers";
-            db.execSQL("UPDATE " + partyTable + " SET balance = balance + ? WHERE name = ? COLLATE NOCASE",
-                new Object[]{total, party.trim()});
-            db.setTransactionSuccessful();
-            return invoiceId;
-        } finally {
-            db.endTransaction();
-        }
+        return saveInvoiceMulti(type, party,
+            java.util.Collections.singletonList(itemId),
+            java.util.Collections.singletonList(itemName),
+            java.util.Collections.singletonList(quantity),
+            java.util.Collections.singletonList(price), notes);
     }
 
     public long saveInvoiceMulti(String type, String party, List<Long> itemIds, List<String> itemNames,
@@ -225,6 +185,12 @@ public final class DatabaseHelper extends SQLiteOpenHelper {
             ContentValues invoice = new ContentValues();
             invoice.put("type", type);
             invoice.put("party_name", party.trim());
+            invoice.put("subtotal", subtotal);
+            invoice.put("discount", discountBase);
+            invoice.put("tax_rate", taxRate);
+            invoice.put("tax_amount", taxAmount);
+            invoice.put("currency_name", currencyName == null || currencyName.trim().isEmpty() ? "محلي" : currencyName.trim());
+            invoice.put("exchange_rate", exchangeRate);
             invoice.put("total", total);
             invoice.put("notes", notes == null ? "" : notes.trim());
             long invoiceId = db.insertOrThrow("invoices", null, invoice);
