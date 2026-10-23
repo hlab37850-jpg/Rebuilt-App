@@ -117,6 +117,7 @@ public final class MainActivity extends Activity {
         drawer.setOrientation(LinearLayout.VERTICAL);
         drawer.setLayoutDirection(View.LAYOUT_DIRECTION_RTL);
         drawer.setBackgroundColor(Color.WHITE);
+        PopupWindow[] popupHolder = new PopupWindow[1];
         TextView header = text("المحاسب سوفت", 20, Color.WHITE, true);
         header.setPadding(dp(18), dp(24), dp(18), dp(24));
         header.setBackgroundColor(BLUE);
@@ -138,7 +139,6 @@ public final class MainActivity extends Activity {
         }
         scroll.addView(list);
         drawer.addView(scroll, new LinearLayout.LayoutParams(-1, 0, 1));
-        PopupWindow[] popupHolder = new PopupWindow[1];
         PopupWindow popup = new PopupWindow(drawer, (int)(getResources().getDisplayMetrics().widthPixels * 0.82f),
             ViewGroup.LayoutParams.MATCH_PARENT, true);
         popupHolder[0] = popup;
