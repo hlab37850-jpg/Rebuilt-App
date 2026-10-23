@@ -786,7 +786,7 @@ public final class MainActivity extends Activity {
         if (requestCode != 41) return;
         try (OutputStream out = getContentResolver().openOutputStream(data.getData());
              OutputStreamWriter writer = new OutputStreamWriter(out, StandardCharsets.UTF_8)) {
-            String[] tables = {"customers", "suppliers", "items", "invoices", "invoice_lines", "transactions", "payments", "expenses", "groups_catalog", "accounts", "cash_boxes", "warehouses", "item_movements", "currencies", "units", "taxes", "branches"};
+            String[] tables = {"customers", "suppliers", "items", "invoices", "invoice_lines", "transactions", "payments", "expenses", "groups_catalog", "accounts", "cash_boxes", "warehouses", "item_movements", "currencies", "units", "taxes", "branches", "item_types"};
             for (String table : tables) {
                 writer.write("\n# " + table + "\n");
                 try (Cursor c = database.list(table)) {
