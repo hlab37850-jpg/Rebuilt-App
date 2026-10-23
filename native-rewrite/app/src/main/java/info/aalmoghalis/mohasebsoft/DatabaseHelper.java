@@ -9,36 +9,48 @@ import java.util.List;
 
 public final class DatabaseHelper extends SQLiteOpenHelper {
     private static final String DB_NAME = "mohaseb_soft.db";
-    private static final int DB_VERSION = 1;
+    private static final int DB_VERSION = 2;
 
     public DatabaseHelper(Context context) {
         super(context, DB_NAME, null, DB_VERSION);
     }
 
     @Override public void onCreate(SQLiteDatabase db) {
-        db.execSQL("CREATE TABLE customers (_id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL, phone TEXT, address TEXT, opening_balance REAL NOT NULL DEFAULT 0, balance REAL NOT NULL DEFAULT 0)");
-        db.execSQL("CREATE TABLE suppliers (_id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL, phone TEXT, address TEXT, opening_balance REAL NOT NULL DEFAULT 0, balance REAL NOT NULL DEFAULT 0)");
-        db.execSQL("CREATE TABLE items (_id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL, code TEXT, unit TEXT, purchase_price REAL NOT NULL DEFAULT 0, sale_price REAL NOT NULL DEFAULT 0, stock REAL NOT NULL DEFAULT 0)");
-        db.execSQL("CREATE TABLE invoices (_id INTEGER PRIMARY KEY AUTOINCREMENT, type TEXT NOT NULL, party_name TEXT NOT NULL, created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP, total REAL NOT NULL DEFAULT 0, notes TEXT)");
-        db.execSQL("CREATE TABLE invoice_lines (_id INTEGER PRIMARY KEY AUTOINCREMENT, invoice_id INTEGER NOT NULL, item_id INTEGER NOT NULL, item_name TEXT NOT NULL, quantity REAL NOT NULL, price REAL NOT NULL, line_total REAL NOT NULL, FOREIGN KEY(invoice_id) REFERENCES invoices(_id) ON DELETE CASCADE)");
-        db.execSQL("CREATE TABLE transactions (_id INTEGER PRIMARY KEY AUTOINCREMENT, account_name TEXT NOT NULL, description TEXT, debit REAL NOT NULL DEFAULT 0, credit REAL NOT NULL DEFAULT 0, created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP)");
-        db.execSQL("CREATE TABLE groups_catalog (_id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL UNIQUE, kind TEXT NOT NULL DEFAULT 'عام')");
-        db.execSQL("CREATE TABLE accounts (_id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL UNIQUE, type TEXT NOT NULL DEFAULT 'عام', opening_balance REAL NOT NULL DEFAULT 0)");
-        db.execSQL("CREATE TABLE cash_boxes (_id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL UNIQUE, currency TEXT NOT NULL DEFAULT 'محلي', balance REAL NOT NULL DEFAULT 0)");
-        db.execSQL("CREATE TABLE expenses (_id INTEGER PRIMARY KEY AUTOINCREMENT, type TEXT NOT NULL, title TEXT NOT NULL, category TEXT, amount REAL NOT NULL, notes TEXT, created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP)");
-        db.execSQL("CREATE TABLE warehouses (_id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL UNIQUE, location TEXT)");
-        db.execSQL("CREATE TABLE item_movements (_id INTEGER PRIMARY KEY AUTOINCREMENT, item_id INTEGER NOT NULL, item_name TEXT NOT NULL, type TEXT NOT NULL, quantity REAL NOT NULL, notes TEXT, created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP)");
-        db.execSQL("CREATE TABLE item_types (_id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL UNIQUE)");
-        db.execSQL("CREATE TABLE units (_id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL UNIQUE, abbreviation TEXT)");
-        db.execSQL("CREATE TABLE currencies (_id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL UNIQUE, code TEXT, exchange_rate REAL NOT NULL DEFAULT 1)");
-        db.execSQL("CREATE TABLE taxes (_id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL UNIQUE, rate REAL NOT NULL DEFAULT 0)");
-        db.execSQL("CREATE TABLE branches (_id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL UNIQUE, location TEXT)");
-        db.execSQL("CREATE TABLE payments (_id INTEGER PRIMARY KEY AUTOINCREMENT, entity_table TEXT NOT NULL, entity_id INTEGER NOT NULL, entity_name TEXT NOT NULL, amount REAL NOT NULL, notes TEXT, created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP)");
-        db.execSQL("CREATE TABLE cash_movements (_id INTEGER PRIMARY KEY AUTOINCREMENT, cash_box_id INTEGER NOT NULL, box_name TEXT NOT NULL, type TEXT NOT NULL, amount REAL NOT NULL, notes TEXT, created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP)");
+        db.execSQL("CREATE TABLE IF NOT EXISTS customers (_id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL, phone TEXT, address TEXT, opening_balance REAL NOT NULL DEFAULT 0, balance REAL NOT NULL DEFAULT 0)");
+        db.execSQL("CREATE TABLE IF NOT EXISTS suppliers (_id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL, phone TEXT, address TEXT, opening_balance REAL NOT NULL DEFAULT 0, balance REAL NOT NULL DEFAULT 0)");
+        db.execSQL("CREATE TABLE IF NOT EXISTS items (_id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL, code TEXT, unit TEXT, purchase_price REAL NOT NULL DEFAULT 0, sale_price REAL NOT NULL DEFAULT 0, stock REAL NOT NULL DEFAULT 0)");
+        db.execSQL("CREATE TABLE IF NOT EXISTS invoices (_id INTEGER PRIMARY KEY AUTOINCREMENT, type TEXT NOT NULL, party_name TEXT NOT NULL, created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP, total REAL NOT NULL DEFAULT 0, notes TEXT)");
+        db.execSQL("CREATE TABLE IF NOT EXISTS invoice_lines (_id INTEGER PRIMARY KEY AUTOINCREMENT, invoice_id INTEGER NOT NULL, item_id INTEGER NOT NULL, item_name TEXT NOT NULL, quantity REAL NOT NULL, price REAL NOT NULL, line_total REAL NOT NULL, FOREIGN KEY(invoice_id) REFERENCES invoices(_id) ON DELETE CASCADE)");
+        db.execSQL("CREATE TABLE IF NOT EXISTS transactions (_id INTEGER PRIMARY KEY AUTOINCREMENT, account_name TEXT NOT NULL, description TEXT, debit REAL NOT NULL DEFAULT 0, credit REAL NOT NULL DEFAULT 0, created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP)");
+        db.execSQL("CREATE TABLE IF NOT EXISTS groups_catalog (_id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL UNIQUE, kind TEXT NOT NULL DEFAULT 'عام')");
+        db.execSQL("CREATE TABLE IF NOT EXISTS accounts (_id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL UNIQUE, type TEXT NOT NULL DEFAULT 'عام', opening_balance REAL NOT NULL DEFAULT 0)");
+        db.execSQL("CREATE TABLE IF NOT EXISTS cash_boxes (_id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL UNIQUE, currency TEXT NOT NULL DEFAULT 'محلي', balance REAL NOT NULL DEFAULT 0)");
+        db.execSQL("CREATE TABLE IF NOT EXISTS expenses (_id INTEGER PRIMARY KEY AUTOINCREMENT, type TEXT NOT NULL, title TEXT NOT NULL, category TEXT, amount REAL NOT NULL, notes TEXT, created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP)");
+        db.execSQL("CREATE TABLE IF NOT EXISTS warehouses (_id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL UNIQUE, location TEXT)");
+        db.execSQL("CREATE TABLE IF NOT EXISTS item_movements (_id INTEGER PRIMARY KEY AUTOINCREMENT, item_id INTEGER NOT NULL, item_name TEXT NOT NULL, type TEXT NOT NULL, quantity REAL NOT NULL, notes TEXT, created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP)");
+        db.execSQL("CREATE TABLE IF NOT EXISTS item_types (_id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL UNIQUE)");
+        db.execSQL("CREATE TABLE IF NOT EXISTS units (_id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL UNIQUE, abbreviation TEXT)");
+        db.execSQL("CREATE TABLE IF NOT EXISTS currencies (_id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL UNIQUE, code TEXT, exchange_rate REAL NOT NULL DEFAULT 1)");
+        db.execSQL("CREATE TABLE IF NOT EXISTS taxes (_id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL UNIQUE, rate REAL NOT NULL DEFAULT 0)");
+        db.execSQL("CREATE TABLE IF NOT EXISTS branches (_id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL UNIQUE, location TEXT)");
+        db.execSQL("CREATE TABLE IF NOT EXISTS payments (_id INTEGER PRIMARY KEY AUTOINCREMENT, entity_table TEXT NOT NULL, entity_id INTEGER NOT NULL, entity_name TEXT NOT NULL, amount REAL NOT NULL, notes TEXT, created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP)");
+        db.execSQL("CREATE TABLE IF NOT EXISTS cash_movements (_id INTEGER PRIMARY KEY AUTOINCREMENT, cash_box_id INTEGER NOT NULL, box_name TEXT NOT NULL, type TEXT NOT NULL, amount REAL NOT NULL, notes TEXT, created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP)");
     }
 
     @Override public void onUpgrade(SQLiteDatabase db, int oldVersion, int newVersion) {
-        // Versioned migrations are added here; user data is never dropped during upgrades.
+        onCreate(db);
+        ensureColumn(db, "customers", "balance", "REAL NOT NULL DEFAULT 0");
+        ensureColumn(db, "suppliers", "balance", "REAL NOT NULL DEFAULT 0");
+    }
+
+    private void ensureColumn(SQLiteDatabase db, String table, String column, String definition) {
+        boolean exists = false;
+        try (Cursor c = db.rawQuery("PRAGMA table_info(" + table + ")", null)) {
+            while (c.moveToNext()) {
+                if (column.equals(c.getString(c.getColumnIndexOrThrow("name")))) { exists = true; break; }
+            }
+        }
+        if (!exists) db.execSQL("ALTER TABLE " + table + " ADD COLUMN " + column + " " + definition);
     }
 
     public Cursor list(String table) {
