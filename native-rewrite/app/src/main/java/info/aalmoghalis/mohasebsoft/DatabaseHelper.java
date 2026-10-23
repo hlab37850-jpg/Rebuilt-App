@@ -76,7 +76,7 @@ public final class DatabaseHelper extends SQLiteOpenHelper {
     }
 
     public double sum(String table, String column) {
-        if (!isAllowed(table) || !("total".equals(column) || "stock".equals(column) || "sale_price".equals(column))) {
+        if (!isAllowed(table) || !("total".equals(column) || "stock".equals(column) || "sale_price".equals(column) || "balance".equals(column))) {
             throw new IllegalArgumentException("Unsupported aggregate");
         }
         try (Cursor c = getReadableDatabase().rawQuery("SELECT COALESCE(SUM(" + column + "),0) FROM " + table, null)) {
