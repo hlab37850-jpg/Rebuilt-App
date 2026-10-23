@@ -28,6 +28,11 @@ public final class DatabaseHelper extends SQLiteOpenHelper {
         db.execSQL("CREATE TABLE expenses (_id INTEGER PRIMARY KEY AUTOINCREMENT, type TEXT NOT NULL, title TEXT NOT NULL, category TEXT, amount REAL NOT NULL, notes TEXT, created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP)");
         db.execSQL("CREATE TABLE warehouses (_id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL UNIQUE, location TEXT)");
         db.execSQL("CREATE TABLE item_movements (_id INTEGER PRIMARY KEY AUTOINCREMENT, item_id INTEGER NOT NULL, item_name TEXT NOT NULL, type TEXT NOT NULL, quantity REAL NOT NULL, notes TEXT, created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP)");
+        db.execSQL("CREATE TABLE item_types (_id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL UNIQUE)");
+        db.execSQL("CREATE TABLE units (_id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL UNIQUE, abbreviation TEXT)");
+        db.execSQL("CREATE TABLE currencies (_id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL UNIQUE, code TEXT, exchange_rate REAL NOT NULL DEFAULT 1)");
+        db.execSQL("CREATE TABLE taxes (_id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL UNIQUE, rate REAL NOT NULL DEFAULT 0)");
+        db.execSQL("CREATE TABLE branches (_id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL UNIQUE, location TEXT)");
     }
 
     @Override public void onUpgrade(SQLiteDatabase db, int oldVersion, int newVersion) {
@@ -79,7 +84,9 @@ public final class DatabaseHelper extends SQLiteOpenHelper {
 
     public long saveEntity(String table, long id, ContentValues values) {
         if (!("customers".equals(table) || "suppliers".equals(table) || "items".equals(table) || "groups_catalog".equals(table)
-            || "accounts".equals(table) || "cash_boxes".equals(table) || "warehouses".equals(table))) {
+            || "accounts".equals(table) || "cash_boxes".equals(table) || "warehouses".equals(table)
+            || "item_types".equals(table) || "units".equals(table) || "currencies".equals(table)
+            || "taxes".equals(table) || "branches".equals(table))) {
             throw new IllegalArgumentException("Unsupported table");
         }
         SQLiteDatabase db = getWritableDatabase();
@@ -253,6 +260,8 @@ public final class DatabaseHelper extends SQLiteOpenHelper {
         return "customers".equals(table) || "suppliers".equals(table) || "items".equals(table)
             || "invoices".equals(table) || "invoice_lines".equals(table)
             || "transactions".equals(table) || "groups_catalog".equals(table) || "accounts".equals(table)
-            || "cash_boxes".equals(table) || "expenses".equals(table) || "warehouses".equals(table) || "item_movements".equals(table);
+            || "cash_boxes".equals(table) || "expenses".equals(table) || "warehouses".equals(table) || "item_movements".equals(table)
+            || "item_types".equals(table) || "units".equals(table) || "currencies".equals(table)
+            || "taxes".equals(table) || "branches".equals(table);
     }
 }
