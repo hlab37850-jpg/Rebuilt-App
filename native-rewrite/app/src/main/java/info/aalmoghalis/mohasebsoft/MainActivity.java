@@ -975,6 +975,8 @@ public final class MainActivity extends Activity {
         addReportLink("المبيعات حسب الصنف", () -> showItemSalesReport("بيع"));
         addReportLink("المشتريات حسب الصنف", () -> showItemSalesReport("شراء"));
         addReportLink("تفاصيل حركة الأصناف", () -> navigate("حركة الأصناف"));
+        addReportLink("ميزان المراجعة", this::showTrialBalanceReport);
+        addReportLink("ملخص الأصول والالتزامات", this::showBalanceSheetReport);
         TextView disclaimer = text("تقارير الأرباح ورأس المال تقديرية؛ لا تُحسب تكلفة تاريخية للفاتورة إلا إذا كانت محفوظة وقت البيع.", 12, Color.GRAY, false);
         disclaimer.setPadding(0, dp(12), 0, 0);
         page.addView(disclaimer);
@@ -1083,6 +1085,47 @@ public final class MainActivity extends Activity {
             if (c.moveToFirst()) total = c.getDouble(0);
         }
         return total;
+    }
+
+    private void showTrialBalanceReport() {
+        page.removeAllViews();
+        addHeading("ميزان المراجعة", "إجماليات المدين والدائن حسب الحسابات المسجلة");
+        double debitTotal = 0;
+        double creditTotal = 0;
+        try (Cursor c = database.getReadableDatabase().rawQuery(
+            "SELECT account_name, COALESCE(SUM(debit),0), COALESCE(SUM(credit),0), " +
+            "COALESCE(SUM(debit)-SUM(credit),0) FROM transactions GROUP BY account_name ORDER BY account_name", null)) {
+            while (c.moveToNext()) {
+                debitTotal += c.getDouble(1);
+                creditTotal += c.getDouble(2);
+                LinearLayout row = card();
+                row.addView(text(c.getString(0), 15, DARK, true));
+                row.addView(text("مدين: " + money(c.getDouble(1)) + " • دائن: " + money(c.getDouble(2)), 12, Color.GRAY, false));
+                row.addView(text("الرصيد: " + money(c.getDouble(3)), 12, BLUE, true));
+                page.addView(row);
+            }
+        }
+        addMetric("إجمالي المدين", debitTotal, "transactions");
+        addMetric("إجمالي الدائن", creditTotal, "transactions");
+        addMetric("الفرق", debitTotal - creditTotal, "transactions");
+        if (page.getChildCount() <= 5) page.addView(text("لا توجد قيود محاسبية مسجلة حتى الآن.", 13, Color.GRAY, false));
+    }
+
+    private void showBalanceSheetReport() {
+        page.removeAllViews();
+        addHeading("ملخص الأصول والالتزامات", "ملخص تقديري من أرصدة العملاء والموردين والصناديق والمخزون");
+        double customerBalances = accountBalanceTotal("customers");
+        double supplierBalances = accountBalanceTotal("suppliers");
+        double cash = database.sum("cash_boxes", "balance");
+        double inventory = database.inventoryValue();
+        double assets = customerBalances + cash + inventory;
+        double liabilities = supplierBalances;
+        addMetric("أرصدة العملاء", customerBalances, "customers");
+        addMetric("أرصدة الصناديق والبنوك", cash, "cash_boxes");
+        addMetric("قيمة المخزون بسعر البيع", inventory, "items");
+        addMetric("أرصدة الموردين", liabilities, "suppliers");
+        addMetric("صافي الأصول التقديري", assets - liabilities, "accounts");
+        page.addView(text("هذا ملخص تشغيلي تقديري، وليس ميزانية عمومية معتمدة؛ لا يشمل جميع القيود والتسويات.", 12, Color.GRAY, false));
     }
 
     private void showSettings() {
