@@ -92,7 +92,7 @@ public final class MainActivity extends Activity {
         toolbar.setGravity(Gravity.CENTER_VERTICAL);
         toolbar.setPadding(dp(12), dp(8), dp(12), dp(8));
         toolbar.setBackgroundColor(BLUE);
-        TextView title = text("المحاسب سوفت", 21, Color.WHITE, true);
+        TextView title = text("محاسب بيه", 21, Color.WHITE, true);
         title.setLayoutParams(new LinearLayout.LayoutParams(0, -2, 1));
         toolbar.addView(title);
         Button menu = button("☰", BLUE, Color.WHITE);
@@ -118,7 +118,7 @@ public final class MainActivity extends Activity {
         drawer.setLayoutDirection(View.LAYOUT_DIRECTION_RTL);
         drawer.setBackgroundColor(Color.WHITE);
         PopupWindow[] popupHolder = new PopupWindow[1];
-        TextView header = text("المحاسب سوفت", 20, Color.WHITE, true);
+        TextView header = text("محاسب بيه", 20, Color.WHITE, true);
         header.setPadding(dp(18), dp(24), dp(18), dp(24));
         header.setBackgroundColor(BLUE);
         drawer.addView(header, matchWrap());
@@ -535,7 +535,7 @@ public final class MainActivity extends Activity {
 
     private void printInvoice(long id, String party, double total) {
         StringBuilder html = new StringBuilder("<html><meta charset='utf-8'><body dir='rtl' style='font-family:sans-serif;padding:24px'>");
-        html.append("<h2>المحاسب سوفت</h2><h3>فاتورة رقم ").append(id).append("</h3>");
+        html.append("<h2>محاسب بيه</h2><h3>فاتورة رقم ").append(id).append("</h3>");
         html.append("<p>الطرف: ").append(htmlEscape(party)).append("</p><table style='width:100%;border-collapse:collapse' border='1' cellpadding='8'><tr><th>الصنف</th><th>الكمية</th><th>السعر</th><th>الإجمالي</th></tr>");
         try (Cursor c = database.invoiceLines(id)) {
             while (c.moveToNext()) {
@@ -761,7 +761,7 @@ public final class MainActivity extends Activity {
         });
         Button about = button("حول التطبيق", Color.WHITE, DARK);
         page.addView(about, matchWrap());
-        about.setOnClickListener(v -> new AlertDialog.Builder(this).setTitle("المحاسب سوفت")
+        about.setOnClickListener(v -> new AlertDialog.Builder(this).setTitle("محاسب بيه")
             .setMessage("إعادة كتابة أصلية بلغة Java مع قاعدة بيانات SQLite محلية. لا تُضاف بيانات تجريبية تلقائيًا.")
             .setPositiveButton("موافق", null).show());
     }
