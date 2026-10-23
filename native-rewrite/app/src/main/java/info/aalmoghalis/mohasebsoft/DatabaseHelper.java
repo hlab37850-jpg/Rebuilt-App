@@ -231,11 +231,10 @@ public final class DatabaseHelper extends SQLiteOpenHelper {
                 if (!inv.moveToFirst()) throw new IllegalArgumentException("الفاتورة غير موجودة");
                 type = inv.getString(0); party = inv.getString(1); total = inv.getDouble(2);
             }
-            try (Cursor lines = db.rawQuery("SELECT item_id, item_name, quantity FROM invoice_lines WHERE invoice_id=?", new String[]{String.valueOf(invoiceId)})) {
-                while (lines.moveToNext()) {
-                    long itemId = lines.getLong(0);
-                    double quantity = lines.getDouble(2);
-                    if ("شراء".equals(type)) {
+            if ("شراء".equals(type)) {
+                try (Cursor lines = db.rawQuery("SELECT item_id, quantity FROM invoice_lines WHERE invoice_id=?", new String[]{String.valueOf(invoiceId)})) {
+                    while (lines.moveToNext()) {
+                        long itemId = lines.getLong(0);
                         double requested = 0;
                         try (Cursor all = db.rawQuery("SELECT item_id, quantity FROM invoice_lines WHERE invoice_id=?", new String[]{String.valueOf(invoiceId)})) {
                             while (all.moveToNext()) if (all.getLong(0) == itemId) requested += all.getDouble(1);
@@ -246,6 +245,12 @@ public final class DatabaseHelper extends SQLiteOpenHelper {
                             }
                         }
                     }
+                }
+            }
+            try (Cursor lines = db.rawQuery("SELECT item_id, quantity FROM invoice_lines WHERE invoice_id=?", new String[]{String.valueOf(invoiceId)})) {
+                while (lines.moveToNext()) {
+                    long itemId = lines.getLong(0);
+                    double quantity = lines.getDouble(1);
                     String operator = "بيع".equals(type) ? "+" : "-";
                     db.execSQL("UPDATE items SET stock = stock " + operator + " ? WHERE _id=?", new Object[]{quantity, itemId});
                 }
