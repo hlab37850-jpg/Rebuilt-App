@@ -9,6 +9,7 @@ import android.database.sqlite.SQLiteDatabase;
 import android.graphics.Color;
 import android.graphics.Typeface;
 import android.graphics.drawable.GradientDrawable;
+import android.graphics.drawable.ColorDrawable;
 import android.net.Uri;
 import android.os.Bundle;
 import android.print.PrintAttributes;
@@ -26,6 +27,7 @@ import android.widget.EditText;
 import android.widget.HorizontalScrollView;
 import android.widget.LinearLayout;
 import android.widget.ScrollView;
+import android.widget.PopupWindow;
 import android.widget.Spinner;
 import android.widget.TextView;
 import android.widget.Toast;
@@ -88,32 +90,17 @@ public final class MainActivity extends Activity {
 
         LinearLayout toolbar = new LinearLayout(this);
         toolbar.setGravity(Gravity.CENTER_VERTICAL);
-        toolbar.setPadding(dp(16), dp(12), dp(16), dp(12));
+        toolbar.setPadding(dp(12), dp(8), dp(12), dp(8));
         toolbar.setBackgroundColor(BLUE);
         TextView title = text("المحاسب سوفت", 21, Color.WHITE, true);
         title.setLayoutParams(new LinearLayout.LayoutParams(0, -2, 1));
         toolbar.addView(title);
-        TextView version = text("نسخة جديدة", 12, Color.WHITE, false);
-        toolbar.addView(version);
+        Button menu = button("☰", BLUE, Color.WHITE);
+        menu.setTextSize(23);
+        menu.setMinWidth(dp(48));
+        toolbar.addView(menu);
+        menu.setOnClickListener(v -> showDrawer());
         root.addView(toolbar);
-
-        HorizontalScrollView navScroll = new HorizontalScrollView(this);
-        navScroll.setHorizontalScrollBarEnabled(false);
-        navScroll.setBackgroundColor(Color.WHITE);
-        LinearLayout nav = new LinearLayout(this);
-        nav.setPadding(dp(6), dp(7), dp(6), dp(7));
-        for (String module : modules) {
-            Button b = button(module, module.equals(currentModule) ? BLUE : Color.WHITE,
-                module.equals(currentModule) ? Color.WHITE : DARK);
-            b.setTextSize(13);
-            b.setPadding(dp(12), dp(4), dp(12), dp(4));
-            LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-2, dp(42));
-            lp.setMargins(dp(3), 0, dp(3), 0);
-            nav.addView(b, lp);
-            b.setOnClickListener(v -> navigate(module));
-        }
-        navScroll.addView(nav);
-        root.addView(navScroll);
 
         ScrollView scroll = new ScrollView(this);
         scroll.setFillViewport(true);
@@ -123,6 +110,42 @@ public final class MainActivity extends Activity {
         scroll.addView(page);
         root.addView(scroll, new LinearLayout.LayoutParams(-1, 0, 1));
         setContentView(root);
+    }
+
+    private void showDrawer() {
+        LinearLayout drawer = new LinearLayout(this);
+        drawer.setOrientation(LinearLayout.VERTICAL);
+        drawer.setLayoutDirection(View.LAYOUT_DIRECTION_RTL);
+        drawer.setBackgroundColor(Color.WHITE);
+        TextView header = text("المحاسب سوفت", 20, Color.WHITE, true);
+        header.setPadding(dp(18), dp(24), dp(18), dp(24));
+        header.setBackgroundColor(BLUE);
+        drawer.addView(header, matchWrap());
+        ScrollView scroll = new ScrollView(this);
+        LinearLayout list = new LinearLayout(this);
+        list.setOrientation(LinearLayout.VERTICAL);
+        list.setPadding(dp(8), dp(8), dp(8), dp(8));
+        for (String module : modules) {
+            Button b = button(module, module.equals(currentModule) ? PALE : Color.WHITE,
+                module.equals(currentModule) ? BLUE : DARK);
+            b.setGravity(Gravity.RIGHT | Gravity.CENTER_VERTICAL);
+            b.setPadding(dp(18), dp(8), dp(18), dp(8));
+            list.addView(b, matchWrap());
+            b.setOnClickListener(v -> {
+                popupHolder[0].dismiss();
+                navigate(module);
+            });
+        }
+        scroll.addView(list);
+        drawer.addView(scroll, new LinearLayout.LayoutParams(-1, 0, 1));
+        PopupWindow[] popupHolder = new PopupWindow[1];
+        PopupWindow popup = new PopupWindow(drawer, (int)(getResources().getDisplayMetrics().widthPixels * 0.82f),
+            ViewGroup.LayoutParams.MATCH_PARENT, true);
+        popupHolder[0] = popup;
+        popup.setBackgroundDrawable(new ColorDrawable(Color.WHITE));
+        popup.setOutsideTouchable(true);
+        popup.setElevation(dp(12));
+        popup.showAtLocation(getWindow().getDecorView(), Gravity.START | Gravity.TOP, 0, 0);
     }
 
     private void navigate(String module) {
