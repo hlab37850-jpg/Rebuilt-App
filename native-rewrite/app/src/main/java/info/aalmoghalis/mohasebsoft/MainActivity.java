@@ -288,6 +288,9 @@ public final class MainActivity extends Activity {
                     item.addView(text(name, 16, DARK, true));
                     item.addView(text(subtitle, 12, Color.GRAY, false));
                     if ("customers".equals(table) || "suppliers".equals(table)) {
+                        Button statement = button("كشف حساب", Color.WHITE, BLUE);
+                        item.addView(statement, matchWrap());
+                        statement.setOnClickListener(v -> showAccountStatement(table, id, name));
                         Button payment = button("سداد مبلغ", Color.WHITE, BLUE);
                         item.addView(payment, matchWrap());
                         payment.setOnClickListener(v -> showPaymentForm(table, id, name));
@@ -395,6 +398,43 @@ public final class MainActivity extends Activity {
                     navigate(currentModule);
                 } catch (Exception ex) { toast("تعذر الحفظ: " + ex.getMessage()); }
             }).show();
+    }
+
+    private void showAccountStatement(String table, long id, String name) {
+        page.removeAllViews();
+        addHeading("كشف حساب: " + name, "الفواتير والسدادات المسجلة لهذا الحساب");
+        try (Cursor account = database.getReadableDatabase().rawQuery(
+            "SELECT opening_balance, balance FROM " + table + " WHERE _id=?", new String[]{String.valueOf(id)})) {
+            if (account.moveToFirst()) {
+                addMetric("الرصيد الافتتاحي", account.getDouble(0), table);
+                addMetric("الرصيد الحالي", account.getDouble(1), table);
+            }
+        }
+        page.addView(text("الفواتير", 17, BLUE, true));
+        try (Cursor invoices = database.getReadableDatabase().rawQuery(
+            "SELECT _id, type, created_at, total FROM invoices WHERE party_name=? ORDER BY _id DESC",
+            new String[]{name})) {
+            while (invoices.moveToNext()) {
+                LinearLayout row = card();
+                row.addView(text("#" + invoices.getLong(0) + " • " + invoices.getString(1), 15, DARK, true));
+                row.addView(text(invoices.getString(2) + " • " + money(invoices.getDouble(3)), 12, Color.GRAY, false));
+                long invoiceId = invoices.getLong(0);
+                double total = invoices.getDouble(3);
+                row.setOnClickListener(v -> showInvoiceDetails(invoiceId, name, total));
+                page.addView(row);
+            }
+        }
+        page.addView(text("السدادات", 17, BLUE, true));
+        try (Cursor payments = database.getReadableDatabase().rawQuery(
+            "SELECT created_at, amount, notes FROM payments WHERE entity_table=? AND entity_id=? ORDER BY _id DESC",
+            new String[]{table, String.valueOf(id)})) {
+            while (payments.moveToNext()) {
+                LinearLayout row = card();
+                row.addView(text("سداد: " + money(payments.getDouble(1)), 15, DARK, true));
+                row.addView(text(payments.getString(0) + " • " + safe(payments, "notes"), 12, Color.GRAY, false));
+                page.addView(row);
+            }
+        }
     }
 
     private void showPaymentForm(String table, long id, String name) {
