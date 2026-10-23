@@ -3,6 +3,7 @@
     <application
         android:allowBackup="true"
         android:label="محاسب بيه"
+        android:icon="@drawable/ic_launcher"
         android:supportsRtl="true"
         android:theme="@android:style/Theme.Material.Light.NoActionBar">
         <activity
