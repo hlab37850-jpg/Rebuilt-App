@@ -15,7 +15,7 @@ public final class DatabaseHelper extends SQLiteOpenHelper {
     }
 
     @Override public void onCreate(SQLiteDatabase db) {
-        db.execSQL("CREATE TABLE customers (_id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL, phone TEXT, address TEXT, opening_balance REAL NOT NULL DEFAULT 0)");
+        db.execSQL("CREATE TABLE customers (_id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL, phone TEXT, address TEXT, opening_balance REAL NOT NULL DEFAULT 0, balance REAL NOT NULL DEFAULT 0)");
         db.execSQL("CREATE TABLE suppliers (_id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL, phone TEXT, address TEXT, opening_balance REAL NOT NULL DEFAULT 0)");
         db.execSQL("CREATE TABLE items (_id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL, code TEXT, unit TEXT, purchase_price REAL NOT NULL DEFAULT 0, sale_price REAL NOT NULL DEFAULT 0, stock REAL NOT NULL DEFAULT 0)");
         db.execSQL("CREATE TABLE invoices (_id INTEGER PRIMARY KEY AUTOINCREMENT, type TEXT NOT NULL, party_name TEXT NOT NULL, created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP, total REAL NOT NULL DEFAULT 0, notes TEXT)");
@@ -83,7 +83,14 @@ public final class DatabaseHelper extends SQLiteOpenHelper {
         }
         SQLiteDatabase db = getWritableDatabase();
         if (id > 0) return db.update(table, values, "_id=?", new String[]{String.valueOf(id)});
-        return db.insertOrThrow(table, null, values);
+        long newId = db.insertOrThrow(table, null, values);
+        if ("customers".equals(table) || "suppliers".equals(table)) {
+            double opening = values.getAsDouble("opening_balance") == null ? 0 : values.getAsDouble("opening_balance");
+            ContentValues current = new ContentValues();
+            current.put("balance", opening);
+            db.update(table, current, "_id=?", new String[]{String.valueOf(newId)});
+        }
+        return newId;
     }
 
     public int delete(String table, long id) {
@@ -119,9 +126,7 @@ public final class DatabaseHelper extends SQLiteOpenHelper {
             String stockSql = "UPDATE items SET stock = stock " + ("بيع".equals(type) ? "-" : "+") + " ? WHERE _id=?";
             db.execSQL(stockSql, new Object[]{quantity, itemId});
             String partyTable = "بيع".equals(type) ? "customers" : "suppliers";
-            ContentValues balance = new ContentValues();
-            balance.put("opening_balance", total);
-            db.execSQL("UPDATE " + partyTable + " SET opening_balance = opening_balance + ? WHERE name = ? COLLATE NOCASE",
+            db.execSQL("UPDATE " + partyTable + " SET balance = balance + ? WHERE name = ? COLLATE NOCASE",
                 new Object[]{total, party.trim()});
             db.setTransactionSuccessful();
             return invoiceId;
