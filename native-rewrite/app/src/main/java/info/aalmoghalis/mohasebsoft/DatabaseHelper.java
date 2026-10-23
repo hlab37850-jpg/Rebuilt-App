@@ -123,6 +123,12 @@ public final class DatabaseHelper extends SQLiteOpenHelper {
             line.put("line_total", total);
             db.insertOrThrow("invoice_lines", null, line);
 
+            if ("بيع".equals(type)) {
+                try (Cursor stock = db.rawQuery("SELECT stock FROM items WHERE _id=?", new String[]{String.valueOf(itemId)})) {
+                    if (!stock.moveToFirst()) throw new IllegalArgumentException("الصنف غير موجود");
+                    if (stock.getDouble(0) < quantity) throw new IllegalArgumentException("الكمية المطلوبة أكبر من المخزون المتاح");
+                }
+            }
             String stockSql = "UPDATE items SET stock = stock " + ("بيع".equals(type) ? "-" : "+") + " ? WHERE _id=?";
             db.execSQL(stockSql, new Object[]{quantity, itemId});
             String partyTable = "بيع".equals(type) ? "customers" : "suppliers";
