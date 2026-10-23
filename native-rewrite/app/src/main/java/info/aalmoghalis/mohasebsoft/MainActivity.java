@@ -64,6 +64,7 @@ public final class MainActivity extends Activity {
         modules.add("الأصناف");
         modules.add("فواتير البيع");
         modules.add("فواتير الشراء");
+        modules.add("المرتجعات");
         modules.add("القيود اليومية");
         modules.add("التصنيفات");
         modules.add("أنواع الأصناف");
@@ -171,6 +172,7 @@ public final class MainActivity extends Activity {
             case "حركة الأصناف": showItemMovements(); break;
             case "فواتير البيع": showInvoices("بيع"); break;
             case "فواتير الشراء": showInvoices("شراء"); break;
+            case "المرتجعات": showReturns(); break;
             case "القيود اليومية": showTransactions(); break;
             case "التقارير": showReports(); break;
             case "الإعدادات": showSettings(); break;
@@ -452,6 +454,48 @@ public final class MainActivity extends Activity {
             }
         }
         if (rows.getChildCount() == 0) rows.addView(text("لا توجد فواتير حتى الآن.", 14, Color.GRAY, false));
+    }
+
+    private void showReturns() {
+        page.removeAllViews();
+        addHeading("المرتجعات", "مرتجع بيع أو مرتجع شراء مع تحديث المخزون ورصيد الحساب");
+        LinearLayout actions = new LinearLayout(this);
+        actions.setOrientation(LinearLayout.HORIZONTAL);
+        Button salesReturn = button("+ مرتجع بيع", BLUE, Color.WHITE);
+        Button purchaseReturn = button("+ مرتجع شراء", Color.WHITE, BLUE);
+        actions.addView(salesReturn, new LinearLayout.LayoutParams(0, -2, 1));
+        actions.addView(purchaseReturn, new LinearLayout.LayoutParams(0, -2, 1));
+        page.addView(actions);
+        salesReturn.setOnClickListener(v -> showInvoiceForm("مرتجع بيع"));
+        purchaseReturn.setOnClickListener(v -> showInvoiceForm("مرتجع شراء"));
+        LinearLayout rows = new LinearLayout(this);
+        rows.setOrientation(LinearLayout.VERTICAL);
+        page.addView(rows);
+        try (Cursor c = database.list("invoices")) {
+            while (c.moveToNext()) {
+                String type = safe(c, "type");
+                if (!type.startsWith("مرتجع")) continue;
+                long id = c.getLong(c.getColumnIndexOrThrow("_id"));
+                String party = safe(c, "party_name");
+                double total = c.getDouble(c.getColumnIndexOrThrow("total"));
+                LinearLayout row = card();
+                row.addView(text("#" + id + " • " + type + " • " + party, 15, DARK, true));
+                row.addView(text(safe(c, "created_at") + " • " + money(total), 12, Color.GRAY, false));
+                row.setOnClickListener(v -> showInvoiceDetails(id, party, total));
+                row.setOnLongClickListener(v -> {
+                    new AlertDialog.Builder(this).setTitle("حذف المرتجع #" + id)
+                        .setMessage("سيتم عكس أثر المرتجع على المخزون ورصيد الحساب.")
+                        .setNegativeButton("إلغاء", null)
+                        .setPositiveButton("حذف", (d, w) -> {
+                            try { database.deleteInvoice(id); toast("تم حذف المرتجع"); navigate("المرتجعات"); }
+                            catch (Exception ex) { toast("تعذر الحذف: " + ex.getMessage()); }
+                        }).show();
+                    return true;
+                });
+                rows.addView(row);
+            }
+        }
+        if (rows.getChildCount() == 0) rows.addView(text("لا توجد مرتجعات مسجلة.", 14, Color.GRAY, false));
     }
 
     private void showInvoiceForm(String type) {
@@ -881,10 +925,13 @@ public final class MainActivity extends Activity {
     private void showItemSalesReport(String type) {
         page.removeAllViews();
         addHeading(("بيع".equals(type) ? "المبيعات" : "المشتريات") + " حسب الصنف", "تجميع كميات وقيم الفواتير المحفوظة");
+        String returnType = "بيع".equals(type) ? "مرتجع بيع" : "مرتجع شراء";
         try (Cursor c = database.getReadableDatabase().rawQuery(
-            "SELECT l.item_name, COALESCE(SUM(l.quantity),0), COALESCE(SUM(l.line_total),0) " +
-            "FROM invoice_lines l INNER JOIN invoices i ON i._id=l.invoice_id WHERE i.type=? GROUP BY l.item_name ORDER BY l.item_name",
-            new String[]{type})) {
+            "SELECT l.item_name, COALESCE(SUM(CASE WHEN i.type LIKE 'مرتجع%' THEN -l.quantity ELSE l.quantity END),0), " +
+            "COALESCE(SUM(CASE WHEN i.type LIKE 'مرتجع%' THEN -l.line_total ELSE l.line_total END),0) " +
+            "FROM invoice_lines l INNER JOIN invoices i ON i._id=l.invoice_id WHERE i.type=? OR i.type=? " +
+            "GROUP BY l.item_name ORDER BY l.item_name",
+            new String[]{type, returnType})) {
             while (c.moveToNext()) {
                 LinearLayout row = card();
                 row.addView(text(c.getString(0), 15, DARK, true));
