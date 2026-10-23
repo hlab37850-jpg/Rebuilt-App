@@ -255,6 +255,11 @@ public final class MainActivity extends Activity {
                     LinearLayout item = card();
                     item.addView(text(name, 16, DARK, true));
                     item.addView(text(subtitle, 12, Color.GRAY, false));
+                    if ("customers".equals(table) || "suppliers".equals(table)) {
+                        Button payment = button("سداد مبلغ", Color.WHITE, BLUE);
+                        item.addView(payment, matchWrap());
+                        payment.setOnClickListener(v -> showPaymentForm(table, id, name));
+                    }
                     item.setOnClickListener(v -> showEntityForm(table, id));
                     item.setOnLongClickListener(v -> {
                         new AlertDialog.Builder(this).setTitle("حذف السجل")
@@ -357,6 +362,26 @@ public final class MainActivity extends Activity {
                     toast("تم الحفظ");
                     navigate(currentModule);
                 } catch (Exception ex) { toast("تعذر الحفظ: " + ex.getMessage()); }
+            }).show();
+    }
+
+    private void showPaymentForm(String table, long id, String name) {
+        LinearLayout form = formLayout();
+        TextView current = text("الحساب: " + name, 15, DARK, true);
+        EditText amount = input("مبلغ السداد");
+        amount.setInputType(8194);
+        EditText notes = input("البيان/ملاحظات");
+        form.addView(current, matchWrap());
+        form.addView(amount, matchWrap());
+        form.addView(notes, matchWrap());
+        new AlertDialog.Builder(this).setTitle("سداد مبلغ").setView(form)
+            .setNegativeButton("إلغاء", null)
+            .setPositiveButton("حفظ السداد", (d, w) -> {
+                try {
+                    database.savePayment(table, id, name, parseNumber(amount.getText().toString()), notes.getText().toString());
+                    toast("تم تسجيل السداد وتحديث الرصيد");
+                    navigate(currentModule);
+                } catch (Exception ex) { toast("تعذر تسجيل السداد: " + ex.getMessage()); }
             }).show();
     }
 
@@ -751,7 +776,7 @@ public final class MainActivity extends Activity {
         if (requestCode != 41) return;
         try (OutputStream out = getContentResolver().openOutputStream(data.getData());
              OutputStreamWriter writer = new OutputStreamWriter(out, StandardCharsets.UTF_8)) {
-            String[] tables = {"customers", "suppliers", "items", "invoices", "invoice_lines", "transactions", "groups_catalog"};
+            String[] tables = {"customers", "suppliers", "items", "invoices", "invoice_lines", "transactions", "payments", "expenses", "groups_catalog", "accounts", "cash_boxes", "warehouses", "item_movements", "currencies", "units", "taxes", "branches"};
             for (String table : tables) {
                 writer.write("\n# " + table + "\n");
                 try (Cursor c = database.list(table)) {
