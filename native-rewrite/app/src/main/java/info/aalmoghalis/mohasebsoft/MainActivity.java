@@ -21,6 +21,7 @@ import android.view.Gravity;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.AdapterView;
+import android.widget.AutoCompleteTextView;
 import android.widget.ArrayAdapter;
 import android.widget.Button;
 import android.widget.EditText;
@@ -570,7 +571,21 @@ public final class MainActivity extends Activity {
             }
         }
         LinearLayout form = formLayout();
-        EditText party = input("اسم العميل/المورد");
+        AutoCompleteTextView party = new AutoCompleteTextView(this);
+        party.setSingleLine(true);
+        party.setTextSize(15);
+        party.setHint("اسم العميل/المورد");
+        party.setPadding(dp(10), dp(8), dp(10), dp(8));
+        party.setGravity(Gravity.RIGHT | Gravity.CENTER_VERTICAL);
+        party.setLayoutDirection(View.LAYOUT_DIRECTION_RTL);
+        party.setBackground(round(Color.WHITE, dp(8), Color.rgb(210, 217, 230)));
+        party.setThreshold(1);
+        String partyTable = ("بيع".equals(type) || "مرتجع بيع".equals(type)) ? "customers" : "suppliers";
+        List<String> partySuggestions = new ArrayList<>();
+        try (Cursor partyCursor = database.list(partyTable)) {
+            while (partyCursor.moveToNext()) partySuggestions.add(partyCursor.getString(partyCursor.getColumnIndexOrThrow("name")));
+        }
+        party.setAdapter(new ArrayAdapter<>(this, android.R.layout.simple_dropdown_item_1line, partySuggestions));
         EditText discount = input("الخصم (بالعملة المختارة)");
         discount.setInputType(8194);
         EditText taxRate = input("نسبة الضريبة %");
