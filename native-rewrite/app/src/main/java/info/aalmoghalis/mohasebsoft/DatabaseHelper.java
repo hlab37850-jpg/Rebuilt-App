@@ -167,7 +167,11 @@ public final class DatabaseHelper extends SQLiteOpenHelper {
                 for (int i = 0; i < itemIds.size(); i++) {
                     try (Cursor stock = db.rawQuery("SELECT stock FROM items WHERE _id=?", new String[]{String.valueOf(itemIds.get(i))})) {
                         if (!stock.moveToFirst()) throw new IllegalArgumentException("أحد الأصناف غير موجود");
-                        if (stock.getDouble(0) < quantities.get(i)) {
+                        double requested = 0;
+                        for (int j = 0; j < itemIds.size(); j++) {
+                            if (itemIds.get(j).longValue() == itemIds.get(i).longValue()) requested += quantities.get(j);
+                        }
+                        if (stock.getDouble(0) < requested) {
                             throw new IllegalArgumentException("المخزون غير كافٍ للصنف: " + itemNames.get(i));
                         }
                     }
@@ -236,6 +240,13 @@ public final class DatabaseHelper extends SQLiteOpenHelper {
         SQLiteDatabase db = getWritableDatabase();
         db.beginTransaction();
         try {
+            if ("صرف".equals(type)) {
+                try (Cursor stock = db.rawQuery("SELECT stock FROM items WHERE _id=?", new String[]{String.valueOf(itemId)})) {
+                    if (!stock.moveToFirst() || stock.getDouble(0) < quantity) {
+                        throw new IllegalArgumentException("المخزون المتاح لا يكفي لهذه الحركة");
+                    }
+                }
+            }
             String operator = "إضافة".equals(type) ? "+" : "-";
             db.execSQL("UPDATE items SET stock = stock " + operator + " ? WHERE _id=?", new Object[]{quantity, itemId});
             ContentValues values = new ContentValues();
