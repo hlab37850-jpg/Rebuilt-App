@@ -516,6 +516,10 @@ public final class MainActivity extends Activity {
         }
         LinearLayout form = formLayout();
         EditText party = input("اسم العميل/المورد");
+        EditText discount = input("الخصم (قيمة)");
+        discount.setInputType(8194);
+        EditText taxRate = input("نسبة الضريبة %");
+        taxRate.setInputType(8194);
         EditText notes = input("ملاحظات (اختياري)");
         LinearLayout linesContainer = new LinearLayout(this);
         linesContainer.setOrientation(LinearLayout.VERTICAL);
@@ -527,6 +531,8 @@ public final class MainActivity extends Activity {
         form.addView(text("تفاصيل الأصناف", 15, DARK, true));
         form.addView(linesContainer, matchWrap());
         form.addView(addLine, matchWrap());
+        form.addView(discount, matchWrap());
+        form.addView(taxRate, matchWrap());
         form.addView(notes, matchWrap());
         new AlertDialog.Builder(this).setTitle("فاتورة " + type).setView(form)
             .setNegativeButton("إلغاء", null)
@@ -545,7 +551,8 @@ public final class MainActivity extends Activity {
                         quantities.add(parseNumber(line.quantity.getText().toString()));
                         chosenPrices.add(parseNumber(line.price.getText().toString()));
                     }
-                    database.saveInvoiceMulti(type, partyName, chosenIds, chosenNames, quantities, chosenPrices, notes.getText().toString());
+                    database.saveInvoiceMulti(type, partyName, chosenIds, chosenNames, quantities, chosenPrices,
+                        notes.getText().toString(), parseNumber(discount.getText().toString()), parseNumber(taxRate.getText().toString()));
                     toast("تم حفظ الفاتورة وتحديث المخزون");
                     navigate(currentModule);
                 } catch (Exception ex) { toast("تعذر حفظ الفاتورة: " + ex.getMessage()); }
@@ -582,13 +589,22 @@ public final class MainActivity extends Activity {
     }
 
     private void showInvoiceDetails(long id, String party, double total) {
-        StringBuilder details = new StringBuilder("الطرف: ").append(party).append("\nالإجمالي: ").append(money(total)).append("\n\n");
+        StringBuilder details = new StringBuilder("الطرف: ").append(party).append("\n");
+        try (Cursor invoice = database.getReadableDatabase().rawQuery(
+            "SELECT subtotal, discount, tax_rate, tax_amount FROM invoices WHERE _id=?", new String[]{String.valueOf(id)})) {
+            if (invoice.moveToFirst()) {
+                details.append("قبل الخصم: ").append(money(invoice.getDouble(0))).append("\n");
+                details.append("الخصم: ").append(money(invoice.getDouble(1))).append("\n");
+                details.append("الضريبة (").append(money(invoice.getDouble(2))).append("%): ").append(money(invoice.getDouble(3))).append("\n\n");
+            }
+        }
         try (Cursor c = database.invoiceLines(id)) {
             while (c.moveToNext()) {
                 details.append(c.getString(0)).append(" — كمية ").append(c.getDouble(1))
                     .append(" × ").append(money(c.getDouble(2))).append(" = ").append(money(c.getDouble(3))).append("\n");
             }
         }
+        details.append("\nالإجمالي النهائي: ").append(money(total));
         new AlertDialog.Builder(this).setTitle("تفاصيل الفاتورة #" + id).setMessage(details.toString())
             .setNeutralButton("طباعة", (dialog, which) -> printInvoice(id, party, total))
             .setNegativeButton("مشاركة", (dialog, which) -> {
