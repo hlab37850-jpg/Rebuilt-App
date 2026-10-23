@@ -10,6 +10,9 @@ import android.graphics.Typeface;
 import android.graphics.drawable.GradientDrawable;
 import android.net.Uri;
 import android.os.Bundle;
+import android.print.PrintAttributes;
+import android.print.PrintManager;
+import android.webkit.WebView;
 import android.text.Editable;
 import android.text.TextWatcher;
 import android.view.Gravity;
@@ -469,7 +472,34 @@ public final class MainActivity extends Activity {
                     .append(" × ").append(money(c.getDouble(2))).append(" = ").append(money(c.getDouble(3))).append("\n");
             }
         }
-        new AlertDialog.Builder(this).setTitle("تفاصيل الفاتورة #" + id).setMessage(details.toString()).setPositiveButton("إغلاق", null).show();
+        new AlertDialog.Builder(this).setTitle("تفاصيل الفاتورة #" + id).setMessage(details.toString())
+            .setNeutralButton("طباعة", (dialog, which) -> printInvoice(id, party, total))
+            .setPositiveButton("إغلاق", null).show();
+    }
+
+    private void printInvoice(long id, String party, double total) {
+        StringBuilder html = new StringBuilder("<html><meta charset='utf-8'><body dir='rtl' style='font-family:sans-serif;padding:24px'>");
+        html.append("<h2>المحاسب سوفت</h2><h3>فاتورة رقم ").append(id).append("</h3>");
+        html.append("<p>الطرف: ").append(htmlEscape(party)).append("</p><table style='width:100%;border-collapse:collapse' border='1' cellpadding='8'><tr><th>الصنف</th><th>الكمية</th><th>السعر</th><th>الإجمالي</th></tr>");
+        try (Cursor c = database.invoiceLines(id)) {
+            while (c.moveToNext()) {
+                html.append("<tr><td>").append(htmlEscape(c.getString(0))).append("</td><td>")
+                    .append(c.getDouble(1)).append("</td><td>").append(money(c.getDouble(2)))
+                    .append("</td><td>").append(money(c.getDouble(3))).append("</td></tr>");
+            }
+        }
+        html.append("</table><h3>الإجمالي: ").append(money(total)).append("</h3></body></html>");
+        WebView web = new WebView(this);
+        web.loadDataWithBaseURL(null, html.toString(), "text/html", "UTF-8", null);
+        web.postDelayed(() -> {
+            PrintManager manager = (PrintManager) getSystemService(PRINT_SERVICE);
+            if (manager != null) manager.print("فاتورة-" + id, web.createPrintDocumentAdapter("فاتورة-" + id),
+                new PrintAttributes.Builder().setMediaSize(PrintAttributes.MediaSize.ISO_A4).build());
+        }, 500);
+    }
+
+    private String htmlEscape(String value) {
+        return value == null ? "" : value.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;").replace("\"", "&quot;");
     }
 
     private void showTransactions() {
