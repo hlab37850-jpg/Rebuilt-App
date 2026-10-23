@@ -5,6 +5,7 @@ import android.app.AlertDialog;
 import android.content.ContentValues;
 import android.content.Intent;
 import android.database.Cursor;
+import android.database.sqlite.SQLiteDatabase;
 import android.graphics.Color;
 import android.graphics.Typeface;
 import android.graphics.drawable.GradientDrawable;
@@ -30,6 +31,10 @@ import android.widget.TextView;
 import android.widget.Toast;
 
 import java.io.OutputStream;
+import java.io.InputStream;
+import java.io.File;
+import java.io.FileInputStream;
+import java.io.FileOutputStream;
 import java.io.OutputStreamWriter;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
@@ -674,7 +679,24 @@ public final class MainActivity extends Activity {
         card.addView(text("قاعدة البيانات", 17, DARK, true));
         card.addView(text("تُحفظ البيانات في ملف SQLite محلي باسم mohaseb_soft.db داخل مساحة التطبيق.", 14, Color.GRAY, false));
         page.addView(card);
-        Button export = button("تصدير البيانات إلى CSV", BLUE, Color.WHITE);
+        Button backup = button("حفظ نسخة احتياطية من قاعدة البيانات", BLUE, Color.WHITE);
+        page.addView(backup, matchWrap());
+        backup.setOnClickListener(v -> {
+            Intent intent = new Intent(Intent.ACTION_CREATE_DOCUMENT);
+            intent.addCategory(Intent.CATEGORY_OPENABLE);
+            intent.setType("application/octet-stream");
+            intent.putExtra(Intent.EXTRA_TITLE, "mohaseb-soft-backup.db");
+            startActivityForResult(intent, 42);
+        });
+        Button restore = button("استعادة نسخة قاعدة البيانات", Color.WHITE, DARK);
+        page.addView(restore, matchWrap());
+        restore.setOnClickListener(v -> {
+            Intent intent = new Intent(Intent.ACTION_OPEN_DOCUMENT);
+            intent.addCategory(Intent.CATEGORY_OPENABLE);
+            intent.setType("*/*");
+            startActivityForResult(intent, 43);
+        });
+        Button export = button("تصدير البيانات إلى CSV", Color.WHITE, DARK);
         page.addView(export, matchWrap());
         export.setOnClickListener(v -> {
             Intent intent = new Intent(Intent.ACTION_CREATE_DOCUMENT);
@@ -692,7 +714,41 @@ public final class MainActivity extends Activity {
 
     @Override protected void onActivityResult(int requestCode, int resultCode, Intent data) {
         super.onActivityResult(requestCode, resultCode, data);
-        if (requestCode != 41 || resultCode != RESULT_OK || data == null || data.getData() == null) return;
+        if (resultCode != RESULT_OK || data == null || data.getData() == null) return;
+        if (requestCode == 42) {
+            File source = getDatabasePath("mohaseb_soft.db");
+            try (InputStream in = new FileInputStream(source);
+                 OutputStream out = getContentResolver().openOutputStream(data.getData())) {
+                if (out == null) throw new IllegalStateException("تعذر فتح ملف النسخة الاحتياطية");
+                copy(in, out);
+                toast("تم حفظ النسخة الاحتياطية");
+            } catch (Exception ex) { toast("فشل حفظ النسخة: " + ex.getMessage()); }
+            return;
+        }
+        if (requestCode == 43) {
+            File temp = new File(getFilesDir(), "restore-validation.db");
+            try (InputStream in = getContentResolver().openInputStream(data.getData());
+                 OutputStream out = new FileOutputStream(temp)) {
+                if (in == null) throw new IllegalStateException("تعذر قراءة ملف النسخة");
+                copy(in, out);
+                try (SQLiteDatabase check = SQLiteDatabase.openDatabase(temp.getAbsolutePath(), null, SQLiteDatabase.OPEN_READONLY)) {
+                    try (Cursor c = check.rawQuery("SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name IN ('items','invoices','customers')", null)) {
+                        if (!c.moveToFirst() || c.getInt(0) < 3) throw new IllegalArgumentException("ملف النسخة ليس قاعدة بيانات متوافقة");
+                    }
+                }
+                database.close();
+                File target = getDatabasePath("mohaseb_soft.db");
+                if (!temp.renameTo(target)) {
+                    try (InputStream in2 = new FileInputStream(temp); OutputStream out2 = new FileOutputStream(target)) { copy(in2, out2); }
+                    temp.delete();
+                }
+                database = new DatabaseHelper(this);
+                toast("تمت استعادة قاعدة البيانات");
+                navigate("الرئيسية");
+            } catch (Exception ex) { toast("فشلت الاستعادة: " + ex.getMessage()); }
+            return;
+        }
+        if (requestCode != 41) return;
         try (OutputStream out = getContentResolver().openOutputStream(data.getData());
              OutputStreamWriter writer = new OutputStreamWriter(out, StandardCharsets.UTF_8)) {
             String[] tables = {"customers", "suppliers", "items", "invoices", "invoice_lines", "transactions", "groups_catalog"};
@@ -722,6 +778,13 @@ public final class MainActivity extends Activity {
         Spinner picker;
         EditText quantity;
         EditText price;
+    }
+
+    private void copy(InputStream in, OutputStream out) throws java.io.IOException {
+        byte[] buffer = new byte[8192];
+        int count;
+        while ((count = in.read(buffer)) != -1) out.write(buffer, 0, count);
+        out.flush();
     }
 
     private String csv(String value) { return "\"" + value.replace("\"", "\"\"") + "\""; }
