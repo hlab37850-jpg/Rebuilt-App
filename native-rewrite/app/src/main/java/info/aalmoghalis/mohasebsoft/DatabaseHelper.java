@@ -110,8 +110,9 @@ public final class DatabaseHelper extends SQLiteOpenHelper {
         }
     }
 
+    /** Inventory valuation at weighted-average purchase cost, not retail selling price. */
     public double inventoryValue() {
-        try (Cursor c = getReadableDatabase().rawQuery("SELECT COALESCE(SUM(stock * sale_price),0) FROM items", null)) {
+        try (Cursor c = getReadableDatabase().rawQuery("SELECT COALESCE(SUM(stock * purchase_price),0) FROM items", null)) {
             return c.moveToFirst() ? c.getDouble(0) : 0;
         }
     }
@@ -248,6 +249,24 @@ public final class DatabaseHelper extends SQLiteOpenHelper {
                 line.put("line_total", quantity * price * exchangeRate);
                 db.insertOrThrow("invoice_lines", null, line);
                 String operator = decreasesStock(type) ? "-" : "+";
+                if ("شراء".equals(type)) {
+                    // Maintain moving weighted-average cost; invoice price is converted to base currency.
+                    try (Cursor current = db.rawQuery(
+                            "SELECT stock, purchase_price FROM items WHERE _id=?",
+                            new String[]{String.valueOf(itemIds.get(i))})) {
+                        if (!current.moveToFirst()) throw new IllegalArgumentException("أحد الأصناف غير موجود");
+                        double oldStock = current.getDouble(0);
+                        double oldCost = current.getDouble(1);
+                        double newStock = oldStock + quantity;
+                        double incomingCost = price * exchangeRate;
+                        double averageCost = newStock > 0
+                            ? ((oldStock * oldCost) + (quantity * incomingCost)) / newStock
+                            : incomingCost;
+                        ContentValues cost = new ContentValues();
+                        cost.put("purchase_price", averageCost);
+                        db.update("items", cost, "_id=?", new String[]{String.valueOf(itemIds.get(i))});
+                    }
+                }
                 db.execSQL("UPDATE items SET stock = stock " + operator + " ? WHERE _id=?",
                     new Object[]{quantity, itemIds.get(i)});
             }
