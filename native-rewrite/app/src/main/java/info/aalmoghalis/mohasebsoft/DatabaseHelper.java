@@ -9,7 +9,7 @@ import java.util.List;
 
 public final class DatabaseHelper extends SQLiteOpenHelper {
     private static final String DB_NAME = "mohaseb_soft.db";
-    private static final int DB_VERSION = 4;
+    private static final int DB_VERSION = 5;
 
     public DatabaseHelper(Context context) {
         super(context, DB_NAME, null, DB_VERSION);
@@ -19,7 +19,7 @@ public final class DatabaseHelper extends SQLiteOpenHelper {
         db.execSQL("CREATE TABLE IF NOT EXISTS customers (_id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL, phone TEXT, address TEXT, opening_balance REAL NOT NULL DEFAULT 0, balance REAL NOT NULL DEFAULT 0)");
         db.execSQL("CREATE TABLE IF NOT EXISTS suppliers (_id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL, phone TEXT, address TEXT, opening_balance REAL NOT NULL DEFAULT 0, balance REAL NOT NULL DEFAULT 0)");
         db.execSQL("CREATE TABLE IF NOT EXISTS items (_id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL, code TEXT, unit TEXT, purchase_price REAL NOT NULL DEFAULT 0, sale_price REAL NOT NULL DEFAULT 0, stock REAL NOT NULL DEFAULT 0)");
-        db.execSQL("CREATE TABLE IF NOT EXISTS invoices (_id INTEGER PRIMARY KEY AUTOINCREMENT, type TEXT NOT NULL, party_name TEXT NOT NULL, created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP, subtotal REAL NOT NULL DEFAULT 0, discount REAL NOT NULL DEFAULT 0, tax_rate REAL NOT NULL DEFAULT 0, tax_amount REAL NOT NULL DEFAULT 0, currency_name TEXT NOT NULL DEFAULT 'محلي', exchange_rate REAL NOT NULL DEFAULT 1, total REAL NOT NULL DEFAULT 0, notes TEXT)");
+        db.execSQL("CREATE TABLE IF NOT EXISTS invoices (_id INTEGER PRIMARY KEY AUTOINCREMENT, type TEXT NOT NULL, party_name TEXT NOT NULL, party_id INTEGER NOT NULL DEFAULT 0, party_table TEXT NOT NULL DEFAULT '', created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP, subtotal REAL NOT NULL DEFAULT 0, discount REAL NOT NULL DEFAULT 0, tax_rate REAL NOT NULL DEFAULT 0, tax_amount REAL NOT NULL DEFAULT 0, currency_name TEXT NOT NULL DEFAULT 'محلي', exchange_rate REAL NOT NULL DEFAULT 1, total REAL NOT NULL DEFAULT 0, notes TEXT)");
         db.execSQL("CREATE TABLE IF NOT EXISTS invoice_lines (_id INTEGER PRIMARY KEY AUTOINCREMENT, invoice_id INTEGER NOT NULL, item_id INTEGER NOT NULL, item_name TEXT NOT NULL, quantity REAL NOT NULL, price REAL NOT NULL, line_total REAL NOT NULL, FOREIGN KEY(invoice_id) REFERENCES invoices(_id) ON DELETE CASCADE)");
         db.execSQL("CREATE TABLE IF NOT EXISTS transactions (_id INTEGER PRIMARY KEY AUTOINCREMENT, account_name TEXT NOT NULL, description TEXT, debit REAL NOT NULL DEFAULT 0, credit REAL NOT NULL DEFAULT 0, created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP)");
         db.execSQL("CREATE TABLE IF NOT EXISTS groups_catalog (_id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL UNIQUE, kind TEXT NOT NULL DEFAULT 'عام')");
@@ -41,6 +41,8 @@ public final class DatabaseHelper extends SQLiteOpenHelper {
         onCreate(db);
         ensureColumn(db, "customers", "balance", "REAL NOT NULL DEFAULT 0");
         ensureColumn(db, "suppliers", "balance", "REAL NOT NULL DEFAULT 0");
+        ensureColumn(db, "invoices", "party_id", "INTEGER NOT NULL DEFAULT 0");
+        ensureColumn(db, "invoices", "party_table", "TEXT NOT NULL DEFAULT ''");
         ensureColumn(db, "invoices", "subtotal", "REAL NOT NULL DEFAULT 0");
         ensureColumn(db, "invoices", "discount", "REAL NOT NULL DEFAULT 0");
         ensureColumn(db, "invoices", "tax_rate", "REAL NOT NULL DEFAULT 0");
@@ -182,8 +184,24 @@ public final class DatabaseHelper extends SQLiteOpenHelper {
                     }
                 }
             }
+            String partyTable = isCustomerInvoice(type) ? "customers" : "suppliers";
+            long partyId = -1;
+            try (Cursor partyCursor = db.rawQuery(
+                    "SELECT _id FROM " + partyTable + " WHERE name=? COLLATE NOCASE ORDER BY _id LIMIT 2",
+                    new String[]{party.trim()})) {
+                if (!partyCursor.moveToFirst()) {
+                    throw new IllegalArgumentException("يجب اختيار حساب مسجل في قائمة " +
+                        ("customers".equals(partyTable) ? "العملاء" : "الموردين"));
+                }
+                partyId = partyCursor.getLong(0);
+                if (partyCursor.moveToNext()) {
+                    throw new IllegalArgumentException("يوجد أكثر من حساب بالاسم نفسه؛ عدّل أسماء الحسابات لتكون مميزة");
+                }
+            }
             ContentValues invoice = new ContentValues();
             invoice.put("type", type);
+            invoice.put("party_id", partyId);
+            invoice.put("party_table", partyTable);
             invoice.put("party_name", party.trim());
             invoice.put("subtotal", subtotal);
             invoice.put("discount", discountBase);
@@ -209,10 +227,9 @@ public final class DatabaseHelper extends SQLiteOpenHelper {
                 db.execSQL("UPDATE items SET stock = stock " + operator + " ? WHERE _id=?",
                     new Object[]{quantity, itemIds.get(i)});
             }
-            String partyTable = isCustomerInvoice(type) ? "customers" : "suppliers";
             double balanceDelta = isReturn(type) ? -total : total;
-            db.execSQL("UPDATE " + partyTable + " SET balance = balance + ? WHERE name = ? COLLATE NOCASE",
-                new Object[]{balanceDelta, party.trim()});
+            db.execSQL("UPDATE " + partyTable + " SET balance = balance + ? WHERE _id=?",
+                new Object[]{balanceDelta, partyId});
             db.setTransactionSuccessful();
             return invoiceId;
         } finally { db.endTransaction(); }
@@ -236,10 +253,16 @@ public final class DatabaseHelper extends SQLiteOpenHelper {
         try {
             String type;
             String party;
+            long partyId;
+            String partyTable;
             double total;
-            try (Cursor inv = db.rawQuery("SELECT type, party_name, total FROM invoices WHERE _id=?", new String[]{String.valueOf(invoiceId)})) {
+            try (Cursor inv = db.rawQuery("SELECT type, party_name, party_id, party_table, total FROM invoices WHERE _id=?", new String[]{String.valueOf(invoiceId)})) {
                 if (!inv.moveToFirst()) throw new IllegalArgumentException("الفاتورة غير موجودة");
-                type = inv.getString(0); party = inv.getString(1); total = inv.getDouble(2);
+                type = inv.getString(0);
+                party = inv.getString(1);
+                partyId = inv.getLong(2);
+                partyTable = inv.getString(3);
+                total = inv.getDouble(4);
             }
             if (!decreasesStock(type)) {
                 try (Cursor lines = db.rawQuery("SELECT item_id, quantity FROM invoice_lines WHERE invoice_id=?", new String[]{String.valueOf(invoiceId)})) {
@@ -265,9 +288,20 @@ public final class DatabaseHelper extends SQLiteOpenHelper {
                     db.execSQL("UPDATE items SET stock = stock " + operator + " ? WHERE _id=?", new Object[]{quantity, itemId});
                 }
             }
-            String partyTable = isCustomerInvoice(type) ? "customers" : "suppliers";
+            if (!("customers".equals(partyTable) || "suppliers".equals(partyTable))) {
+                partyTable = isCustomerInvoice(type) ? "customers" : "suppliers";
+            }
+            if (partyId <= 0) {
+                try (Cursor legacyParty = db.rawQuery("SELECT _id FROM " + partyTable +
+                        " WHERE name=? COLLATE NOCASE ORDER BY _id LIMIT 1", new String[]{party})) {
+                    if (legacyParty.moveToFirst()) partyId = legacyParty.getLong(0);
+                }
+            }
             double balanceDelta = isReturn(type) ? total : -total;
-            db.execSQL("UPDATE " + partyTable + " SET balance = balance + ? WHERE name = ? COLLATE NOCASE", new Object[]{balanceDelta, party});
+            if (partyId > 0) {
+                db.execSQL("UPDATE " + partyTable + " SET balance = balance + ? WHERE _id=?",
+                    new Object[]{balanceDelta, partyId});
+            }
             db.delete("invoice_lines", "invoice_id=?", new String[]{String.valueOf(invoiceId)});
             db.delete("invoices", "_id=?", new String[]{String.valueOf(invoiceId)});
             db.setTransactionSuccessful();
