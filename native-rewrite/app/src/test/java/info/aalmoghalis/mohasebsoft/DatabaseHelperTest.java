@@ -107,6 +107,44 @@ public class DatabaseHelperTest {
         assertEquals(18.0, partyBalance("suppliers", supplierId), 0.0001);
     }
 
+    @Test public void linkedCustomersSuppliersAndItemsCannotBeDeleted() {
+        long customerId = saveParty("customers", "عميل مرتبط");
+        long supplierId = saveParty("suppliers", "مورد مرتبط");
+        long itemId = saveItem("صنف مرتبط", 5, 8, 4);
+
+        helper.saveInvoiceMulti("بيع", "عميل مرتبط",
+            Collections.singletonList(itemId), Collections.singletonList("صنف مرتبط"),
+            Collections.singletonList(1.0), Collections.singletonList(8.0), "فاتورة تمنع الحذف");
+
+        assertDeleteBlocked("customers", customerId);
+        assertDeleteBlocked("items", itemId);
+
+        helper.saveInvoiceMulti("شراء", "مورد مرتبط",
+            Collections.singletonList(itemId), Collections.singletonList("صنف مرتبط"),
+            Collections.singletonList(1.0), Collections.singletonList(4.0), "فاتورة مورد");
+        assertDeleteBlocked("suppliers", supplierId);
+    }
+
+    @Test public void cashBoxesWithMovementsCannotBeDeleted() {
+        ContentValues box = new ContentValues();
+        box.put("name", "صندوق مرتبط");
+        box.put("currency", "محلي");
+        box.put("balance", 0);
+        long boxId = helper.saveEntity("cash_boxes", 0, box);
+        helper.saveCashMovement(boxId, "صندوق مرتبط", "إيداع", 25, "اختبار حماية الحذف");
+        assertDeleteBlocked("cash_boxes", boxId);
+    }
+
+    private void assertDeleteBlocked(String table, long id) {
+        boolean blocked = false;
+        try {
+            helper.delete(table, id);
+        } catch (IllegalStateException expected) {
+            blocked = expected.getMessage().contains("مرتبط");
+        }
+        assertTrue("Expected deletion to be blocked for " + table, blocked);
+    }
+
     @Test public void migrationLinksOnlyUniqueLegacyPartyNames() {
         context.deleteDatabase("mohaseb_soft.db");
         SQLiteDatabase legacy = context.openOrCreateDatabase("mohaseb_soft.db", Context.MODE_PRIVATE, null);
