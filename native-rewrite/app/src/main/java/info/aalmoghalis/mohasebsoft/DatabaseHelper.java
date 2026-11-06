@@ -212,13 +212,15 @@ public final class DatabaseHelper extends SQLiteOpenHelper {
             } else if ("cash_boxes".equals(table)) {
                 references += scalarCount(db, "SELECT COUNT(*) FROM cash_movements WHERE cash_box_id=?",
                     new String[]{String.valueOf(id)});
-            } else if ("accounts".equals(table) && name != null) {
-                references += scalarCount(db, "SELECT COUNT(*) FROM transactions WHERE account_name=? COLLATE NOCASE",
-                    new String[]{name});
-                references += scalarCount(db, "SELECT COUNT(*) FROM journal_lines WHERE account_id=?",
-                    new String[]{String.valueOf(id)});
             } else if ("accounts".equals(table)) {
-                references += scalarCount(db,"SELECT COUNT(*) FROM accounts WHERE parent_account_id=?",new String[]{String.valueOf(id)});
+                if (name != null) {
+                    references += scalarCount(db, "SELECT COUNT(*) FROM transactions WHERE account_name=? COLLATE NOCASE",
+                        new String[]{name});
+                    references += scalarCount(db, "SELECT COUNT(*) FROM journal_lines WHERE account_id=?",
+                        new String[]{String.valueOf(id)});
+                }
+                references += scalarCount(db, "SELECT COUNT(*) FROM accounts WHERE parent_account_id=?",
+                    new String[]{String.valueOf(id)});
             } else if ("currencies".equals(table) && name != null) {
                 references += scalarCount(db, "SELECT COUNT(*) FROM invoices WHERE currency_name=? COLLATE NOCASE",
                     new String[]{name});
