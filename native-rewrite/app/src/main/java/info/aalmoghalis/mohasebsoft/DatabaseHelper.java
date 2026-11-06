@@ -9,7 +9,7 @@ import java.util.List;
 
 public final class DatabaseHelper extends SQLiteOpenHelper {
     private static final String DB_NAME = "mohaseb_soft.db";
-    private static final int DB_VERSION = 8;
+    private static final int DB_VERSION = 9;
 
     public DatabaseHelper(Context context) {
         super(context, DB_NAME, null, DB_VERSION);
@@ -35,6 +35,9 @@ public final class DatabaseHelper extends SQLiteOpenHelper {
         db.execSQL("CREATE TABLE IF NOT EXISTS branches (_id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL UNIQUE, location TEXT)");
         db.execSQL("CREATE TABLE IF NOT EXISTS payments (_id INTEGER PRIMARY KEY AUTOINCREMENT, entity_table TEXT NOT NULL, entity_id INTEGER NOT NULL, entity_name TEXT NOT NULL, amount REAL NOT NULL, cash_box_id INTEGER NOT NULL DEFAULT 0, cash_box_name TEXT NOT NULL DEFAULT '', notes TEXT, created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP)");
         db.execSQL("CREATE TABLE IF NOT EXISTS cash_movements (_id INTEGER PRIMARY KEY AUTOINCREMENT, cash_box_id INTEGER NOT NULL, box_name TEXT NOT NULL, type TEXT NOT NULL, amount REAL NOT NULL, payment_id INTEGER NOT NULL DEFAULT 0, expense_id INTEGER NOT NULL DEFAULT 0, notes TEXT, created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP)");
+        db.execSQL("CREATE TABLE IF NOT EXISTS journal_entries (_id INTEGER PRIMARY KEY AUTOINCREMENT, description TEXT NOT NULL, source_type TEXT NOT NULL DEFAULT 'manual', source_id INTEGER NOT NULL DEFAULT 0, created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP)");
+        db.execSQL("CREATE TABLE IF NOT EXISTS journal_lines (_id INTEGER PRIMARY KEY AUTOINCREMENT, entry_id INTEGER NOT NULL, account_id INTEGER NOT NULL, account_name TEXT NOT NULL, debit REAL NOT NULL DEFAULT 0, credit REAL NOT NULL DEFAULT 0, line_no INTEGER NOT NULL, FOREIGN KEY(entry_id) REFERENCES journal_entries(_id), FOREIGN KEY(account_id) REFERENCES accounts(_id))");
+        db.execSQL("CREATE UNIQUE INDEX IF NOT EXISTS idx_journal_source ON journal_entries(source_type, source_id) WHERE source_id > 0");
     }
 
     @Override public void onUpgrade(SQLiteDatabase db, int oldVersion, int newVersion) {
@@ -55,6 +58,9 @@ public final class DatabaseHelper extends SQLiteOpenHelper {
         ensureColumn(db, "cash_movements", "expense_id", "INTEGER NOT NULL DEFAULT 0");
         ensureColumn(db, "expenses", "cash_box_id", "INTEGER NOT NULL DEFAULT 0");
         ensureColumn(db, "expenses", "cash_box_name", "TEXT NOT NULL DEFAULT ''");
+        db.execSQL("CREATE TABLE IF NOT EXISTS journal_entries (_id INTEGER PRIMARY KEY AUTOINCREMENT, description TEXT NOT NULL, source_type TEXT NOT NULL DEFAULT 'manual', source_id INTEGER NOT NULL DEFAULT 0, created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP)");
+        db.execSQL("CREATE TABLE IF NOT EXISTS journal_lines (_id INTEGER PRIMARY KEY AUTOINCREMENT, entry_id INTEGER NOT NULL, account_id INTEGER NOT NULL, account_name TEXT NOT NULL, debit REAL NOT NULL DEFAULT 0, credit REAL NOT NULL DEFAULT 0, line_no INTEGER NOT NULL, FOREIGN KEY(entry_id) REFERENCES journal_entries(_id), FOREIGN KEY(account_id) REFERENCES accounts(_id))");
+        db.execSQL("CREATE UNIQUE INDEX IF NOT EXISTS idx_journal_source ON journal_entries(source_type, source_id) WHERE source_id > 0");
         backfillInvoicePartyLinks(db);
     }
 
@@ -189,6 +195,8 @@ public final class DatabaseHelper extends SQLiteOpenHelper {
             } else if ("accounts".equals(table) && name != null) {
                 references += scalarCount(db, "SELECT COUNT(*) FROM transactions WHERE account_name=? COLLATE NOCASE",
                     new String[]{name});
+                references += scalarCount(db, "SELECT COUNT(*) FROM journal_lines WHERE account_id=?",
+                    new String[]{String.valueOf(id)});
             } else if ("currencies".equals(table) && name != null) {
                 references += scalarCount(db, "SELECT COUNT(*) FROM invoices WHERE currency_name=? COLLATE NOCASE",
                     new String[]{name});
@@ -334,6 +342,63 @@ public final class DatabaseHelper extends SQLiteOpenHelper {
             db.setTransactionSuccessful();
             return invoiceId;
         } finally { db.endTransaction(); }
+    }
+
+    /** Saves a balanced multi-line journal entry atomically; source IDs cannot be posted twice. */
+    public long saveJournalEntry(String description, String sourceType, long sourceId,
+                                 List<Long> accountIds, List<Double> debits, List<Double> credits) {
+        if (description == null || description.trim().isEmpty() || sourceType == null || sourceType.trim().isEmpty()
+                || accountIds == null || debits == null || credits == null || accountIds.size() < 2
+                || accountIds.size() != debits.size() || accountIds.size() != credits.size()) {
+            throw new IllegalArgumentException("القيد يحتاج بيانًا وسطرين محاسبيين على الأقل");
+        }
+        double totalDebit = 0, totalCredit = 0;
+        for (int i = 0; i < accountIds.size(); i++) {
+            Long accountId = accountIds.get(i); Double debit = debits.get(i); Double credit = credits.get(i);
+            if (accountId == null || accountId <= 0 || debit == null || credit == null
+                    || !Double.isFinite(debit) || !Double.isFinite(credit) || debit < 0 || credit < 0
+                    || (debit > 0 && credit > 0) || (debit == 0 && credit == 0)) {
+                throw new IllegalArgumentException("تحقق من الحساب والمدين والدائن في كل سطر");
+            }
+            totalDebit += debit; totalCredit += credit;
+        }
+        if (Math.abs(totalDebit - totalCredit) > 0.0001)
+            throw new IllegalArgumentException("القيد غير متوازن: مجموع المدين يجب أن يساوي مجموع الدائن");
+        SQLiteDatabase db = getWritableDatabase(); db.beginTransaction();
+        try {
+            if (sourceId > 0) try (Cursor duplicate = db.rawQuery("SELECT _id FROM journal_entries WHERE source_type=? AND source_id=?",
+                    new String[]{sourceType.trim(), String.valueOf(sourceId)})) {
+                if (duplicate.moveToFirst()) throw new IllegalArgumentException("هذه العملية مرحّلة إلى دفتر القيود مسبقًا");
+            }
+            String[] names = new String[accountIds.size()];
+            for (int i = 0; i < accountIds.size(); i++) try (Cursor account = db.rawQuery("SELECT name FROM accounts WHERE _id=?",
+                    new String[]{String.valueOf(accountIds.get(i))})) {
+                if (!account.moveToFirst()) throw new IllegalArgumentException("أحد الحسابات غير موجود");
+                names[i] = account.getString(0);
+            }
+            ContentValues header = new ContentValues(); header.put("description", description.trim());
+            header.put("source_type", sourceType.trim()); header.put("source_id", sourceId);
+            long entryId = db.insertOrThrow("journal_entries", null, header);
+            for (int i = 0; i < accountIds.size(); i++) {
+                ContentValues line = new ContentValues(); line.put("entry_id", entryId);
+                line.put("account_id", accountIds.get(i)); line.put("account_name", names[i]);
+                line.put("debit", debits.get(i)); line.put("credit", credits.get(i)); line.put("line_no", i + 1);
+                db.insertOrThrow("journal_lines", null, line);
+            }
+            db.setTransactionSuccessful(); return entryId;
+        } finally { db.endTransaction(); }
+    }
+
+    public Cursor journalLines(long entryId) {
+        return getReadableDatabase().rawQuery("SELECT account_id, account_name, debit, credit, line_no FROM journal_lines WHERE entry_id=? ORDER BY line_no",
+                new String[]{String.valueOf(entryId)});
+    }
+
+    public double journalDebitTotal() {
+        try (Cursor c = getReadableDatabase().rawQuery("SELECT COALESCE(SUM(debit),0) FROM journal_lines", null)) { return c.moveToFirst() ? c.getDouble(0) : 0; }
+    }
+    public double journalCreditTotal() {
+        try (Cursor c = getReadableDatabase().rawQuery("SELECT COALESCE(SUM(credit),0) FROM journal_lines", null)) { return c.moveToFirst() ? c.getDouble(0) : 0; }
     }
 
     public long saveTransaction(String account, String description, double debit, double credit) {
@@ -605,7 +670,7 @@ public final class DatabaseHelper extends SQLiteOpenHelper {
     private boolean isAllowed(String table) {
         return "customers".equals(table) || "suppliers".equals(table) || "items".equals(table)
             || "invoices".equals(table) || "invoice_lines".equals(table)
-            || "transactions".equals(table) || "groups_catalog".equals(table) || "accounts".equals(table)
+            || "transactions".equals(table) || "journal_entries".equals(table) || "journal_lines".equals(table) || "groups_catalog".equals(table) || "accounts".equals(table)
             || "cash_boxes".equals(table) || "expenses".equals(table) || "warehouses".equals(table) || "item_movements".equals(table)
             || "item_types".equals(table) || "units".equals(table) || "currencies".equals(table)
             || "taxes".equals(table) || "branches".equals(table) || "payments".equals(table) || "cash_movements".equals(table);

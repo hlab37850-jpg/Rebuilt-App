@@ -22,8 +22,8 @@ Multiple warehouses/transfers,Inventory,should,yes,partial,Warehouse CRUD but no
 Categories/units/item types,Master data,should,yes,partial,Some CRUD; links incomplete
 Currencies and exchange rates,Accounting,should,yes,partial,No effective-dated rate history
 Taxes and tax identity,Compliance,should,yes,partial,Compliance workflow incomplete
-Chart of accounts,Accounting,must,yes,partial,Simple CRUD; hierarchy incomplete
-Balanced double-entry journal,Accounting,must,yes,partial,No balanced journal posting gate visible
+Chart of accounts,Accounting,must,yes,partial,Journal lines reference existing accounts; hierarchy and standard account mapping remain
+Balanced double-entry journal,Accounting,must,yes,partial,Version 9 adds atomic balanced journal headers and lines, account validation, duplicate-source protection and tests; automatic posting from business workflows remains next
 Cash boxes and banks,Accounting,must,yes,partial,Deletion blocked when cash movements exist; reconcile with vouchers remains
 Cash deposits/withdrawals,Accounting,must,yes,partial,Need journal and audit linkage
 Expenses and income,Accounting,must,yes,partial,New income/expense entries update selected cash box atomically and link a cash movement; period filters and journal posting remain incomplete

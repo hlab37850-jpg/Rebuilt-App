@@ -305,6 +305,53 @@ public class DatabaseHelperTest {
         }
     }
 
+    @Test public void journalEntryStoresBalancedMultipleLines() {
+        long cash = saveAccount("النقدية", "أصل"); long income = saveAccount("إيرادات الخدمات", "إيراد");
+        long id = helper.saveJournalEntry("إثبات إيراد خدمة", "manual-test", 101,
+                Arrays.asList(cash, income), Arrays.asList(75.0, 0.0), Arrays.asList(0.0, 75.0));
+        assertTrue(id > 0); assertEquals(1, helper.count("journal_entries")); assertEquals(2, helper.count("journal_lines"));
+        assertEquals(75.0, helper.journalDebitTotal(), 0.0001); assertEquals(75.0, helper.journalCreditTotal(), 0.0001);
+        try (Cursor lines = helper.journalLines(id)) { assertTrue(lines.moveToFirst()); assertEquals("النقدية", lines.getString(1));
+            assertEquals(75.0, lines.getDouble(2), 0.0001); assertTrue(lines.moveToNext());
+            assertEquals("إيرادات الخدمات", lines.getString(1)); assertEquals(75.0, lines.getDouble(3), 0.0001); }
+    }
+
+    @Test public void unbalancedJournalIsRejectedWithoutPartialRows() {
+        long cash = saveAccount("نقدية اختبار", "أصل"); long income = saveAccount("دخل اختبار", "إيراد");
+        boolean rejected = false;
+        try { helper.saveJournalEntry("قيد غير متوازن", "manual-test", 102, Arrays.asList(cash, income),
+                Arrays.asList(100.0, 0.0), Arrays.asList(0.0, 90.0)); }
+        catch (IllegalArgumentException expected) { rejected = expected.getMessage().contains("غير متوازن"); }
+        assertTrue(rejected); assertEquals(0, helper.count("journal_entries")); assertEquals(0, helper.count("journal_lines"));
+    }
+
+    @Test public void journalRejectsDuplicateSourceAndUnknownAccounts() {
+        long cash = saveAccount("نقدية مصدر", "أصل"); long income = saveAccount("دخل مصدر", "إيراد");
+        helper.saveJournalEntry("قيد مصدر", "expense", 700, Arrays.asList(cash, income),
+                Arrays.asList(20.0, 0.0), Arrays.asList(0.0, 20.0));
+        boolean duplicate = false;
+        try { helper.saveJournalEntry("تكرار القيد", "expense", 700, Arrays.asList(cash, income),
+                Arrays.asList(20.0, 0.0), Arrays.asList(0.0, 20.0)); }
+        catch (IllegalArgumentException expected) { duplicate = expected.getMessage().contains("مسبقًا"); }
+        assertTrue(duplicate); boolean missing = false;
+        try { helper.saveJournalEntry("حساب غير موجود", "manual-test", 0, Arrays.asList(cash, 999999L),
+                Arrays.asList(5.0, 0.0), Arrays.asList(0.0, 5.0)); }
+        catch (IllegalArgumentException expected) { missing = expected.getMessage().contains("غير موجود"); }
+        assertTrue(missing); assertEquals(1, helper.count("journal_entries")); assertEquals(2, helper.count("journal_lines"));
+    }
+
+    @Test public void accountReferencedByJournalCannotBeDeleted() {
+        long cash = saveAccount("حساب دفتر الأستاذ", "أصل"); long income = saveAccount("حساب إيراد دفتر الأستاذ", "إيراد");
+        helper.saveJournalEntry("قيد يمنع حذف الحساب", "manual-test", 103, Arrays.asList(cash, income),
+                Arrays.asList(10.0, 0.0), Arrays.asList(0.0, 10.0));
+        assertDeleteBlocked("accounts", cash);
+    }
+
+    private long saveAccount(String name, String type) {
+        ContentValues values = new ContentValues(); values.put("name", name); values.put("type", type); values.put("opening_balance", 0);
+        return helper.saveEntity("accounts", 0, values);
+    }
+
     private long saveParty(String table, String name) {
         ContentValues values = new ContentValues();
         values.put("name", name);
