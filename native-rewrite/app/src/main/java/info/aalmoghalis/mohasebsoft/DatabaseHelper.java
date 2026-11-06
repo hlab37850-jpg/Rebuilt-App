@@ -9,7 +9,7 @@ import java.util.List;
 
 public final class DatabaseHelper extends SQLiteOpenHelper {
     private static final String DB_NAME = "mohaseb_soft.db";
-    private static final int DB_VERSION = 10;
+    private static final int DB_VERSION = 11;
 
     public DatabaseHelper(Context context) {
         super(context, DB_NAME, null, DB_VERSION);
@@ -38,6 +38,7 @@ public final class DatabaseHelper extends SQLiteOpenHelper {
         db.execSQL("CREATE TABLE IF NOT EXISTS journal_entries (_id INTEGER PRIMARY KEY AUTOINCREMENT, description TEXT NOT NULL, source_type TEXT NOT NULL DEFAULT 'manual', source_id INTEGER NOT NULL DEFAULT 0, created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP)");
         db.execSQL("CREATE TABLE IF NOT EXISTS journal_lines (_id INTEGER PRIMARY KEY AUTOINCREMENT, entry_id INTEGER NOT NULL, account_id INTEGER NOT NULL, account_name TEXT NOT NULL, debit REAL NOT NULL DEFAULT 0, credit REAL NOT NULL DEFAULT 0, line_no INTEGER NOT NULL, FOREIGN KEY(entry_id) REFERENCES journal_entries(_id), FOREIGN KEY(account_id) REFERENCES accounts(_id))");
         db.execSQL("CREATE UNIQUE INDEX IF NOT EXISTS idx_journal_source ON journal_entries(source_type, source_id) WHERE source_id > 0");
+        db.execSQL("CREATE TABLE IF NOT EXISTS account_mappings (mapping_key TEXT PRIMARY KEY, account_id INTEGER NOT NULL, FOREIGN KEY(account_id) REFERENCES accounts(_id))");
     }
 
     @Override public void onUpgrade(SQLiteDatabase db, int oldVersion, int newVersion) {
@@ -65,6 +66,7 @@ public final class DatabaseHelper extends SQLiteOpenHelper {
         db.execSQL("CREATE TABLE IF NOT EXISTS journal_entries (_id INTEGER PRIMARY KEY AUTOINCREMENT, description TEXT NOT NULL, source_type TEXT NOT NULL DEFAULT 'manual', source_id INTEGER NOT NULL DEFAULT 0, created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP)");
         db.execSQL("CREATE TABLE IF NOT EXISTS journal_lines (_id INTEGER PRIMARY KEY AUTOINCREMENT, entry_id INTEGER NOT NULL, account_id INTEGER NOT NULL, account_name TEXT NOT NULL, debit REAL NOT NULL DEFAULT 0, credit REAL NOT NULL DEFAULT 0, line_no INTEGER NOT NULL, FOREIGN KEY(entry_id) REFERENCES journal_entries(_id), FOREIGN KEY(account_id) REFERENCES accounts(_id))");
         db.execSQL("CREATE UNIQUE INDEX IF NOT EXISTS idx_journal_source ON journal_entries(source_type, source_id) WHERE source_id > 0");
+        db.execSQL("CREATE TABLE IF NOT EXISTS account_mappings (mapping_key TEXT PRIMARY KEY, account_id INTEGER NOT NULL, FOREIGN KEY(account_id) REFERENCES accounts(_id))");
         backfillInvoicePartyLinks(db);
     }
 
@@ -221,6 +223,8 @@ public final class DatabaseHelper extends SQLiteOpenHelper {
                 }
                 references += scalarCount(db, "SELECT COUNT(*) FROM accounts WHERE parent_account_id=?",
                     new String[]{String.valueOf(id)});
+                references += scalarCount(db, "SELECT COUNT(*) FROM account_mappings WHERE account_id=?",
+                    new String[]{String.valueOf(id)});
             } else if ("currencies".equals(table) && name != null) {
                 references += scalarCount(db, "SELECT COUNT(*) FROM invoices WHERE currency_name=? COLLATE NOCASE",
                     new String[]{name});
@@ -327,6 +331,15 @@ public final class DatabaseHelper extends SQLiteOpenHelper {
             invoice.put("total", total);
             invoice.put("notes", notes == null ? "" : notes.trim());
             long invoiceId = db.insertOrThrow("invoices", null, invoice);
+            double inventoryCost = 0;
+            if (decreasesStock(type) || isCustomerInvoice(type)) {
+                for (int i = 0; i < itemIds.size(); i++) {
+                    try (Cursor cost = db.rawQuery("SELECT purchase_price FROM items WHERE _id=?", new String[]{String.valueOf(itemIds.get(i))})) {
+                        if (!cost.moveToFirst()) throw new IllegalArgumentException("أحد الأصناف غير موجود");
+                        inventoryCost += quantities.get(i) * cost.getDouble(0);
+                    }
+                }
+            }
             for (int i = 0; i < itemIds.size(); i++) {
                 double quantity = quantities.get(i);
                 double price = prices.get(i);
@@ -363,6 +376,7 @@ public final class DatabaseHelper extends SQLiteOpenHelper {
             double balanceDelta = isReturn(type) ? -total : total;
             db.execSQL("UPDATE " + partyTable + " SET balance = balance + ? WHERE _id=?",
                 new Object[]{balanceDelta, partyId});
+            postInvoiceJournalIfConfigured(type, invoiceId, total, subtotal - discountBase, taxAmount, inventoryCost);
             db.setTransactionSuccessful();
             return invoiceId;
         } finally { db.endTransaction(); }
@@ -437,6 +451,36 @@ public final class DatabaseHelper extends SQLiteOpenHelper {
     public double accountJournalBalance(long id) {
         try (Cursor c=getReadableDatabase().rawQuery("SELECT COALESCE(SUM(debit)-SUM(credit),0) FROM journal_lines WHERE account_id=?",new String[]{String.valueOf(id)})) { return c.moveToFirst()?c.getDouble(0):0; }
     }
+    private boolean validMappingKey(String key) { return java.util.Arrays.asList("accounts_receivable","accounts_payable","sales_revenue","inventory_asset","cost_of_goods_sold","tax_payable","cash","expenses","other_income").contains(key); }
+    public void setAccountMapping(String key,long accountId) {
+        if(!validMappingKey(key))throw new IllegalArgumentException("نوع ربط الحساب غير معروف");
+        SQLiteDatabase db=getWritableDatabase();if(accountId<=0){db.delete("account_mappings","mapping_key=?",new String[]{key});return;}
+        try(Cursor c=db.rawQuery("SELECT is_group,is_active FROM accounts WHERE _id=?",new String[]{String.valueOf(accountId)})){if(!c.moveToFirst()||c.getInt(0)==1||c.getInt(1)==0)throw new IllegalArgumentException("اختر حسابًا فرعيًا نشطًا");}
+        ContentValues v=new ContentValues();v.put("mapping_key",key);v.put("account_id",accountId);db.insertWithOnConflict("account_mappings",null,v,SQLiteDatabase.CONFLICT_REPLACE);
+    }
+    public long getAccountMapping(String key) { try(Cursor c=getReadableDatabase().rawQuery("SELECT account_id FROM account_mappings WHERE mapping_key=?",new String[]{key})){return c.moveToFirst()?c.getLong(0):0;} }
+    public boolean hasCoreAccountMappings() { return getAccountMapping("accounts_receivable")>0&&getAccountMapping("accounts_payable")>0&&getAccountMapping("sales_revenue")>0&&getAccountMapping("inventory_asset")>0&&getAccountMapping("cost_of_goods_sold")>0&&getAccountMapping("cash")>0&&getAccountMapping("expenses")>0&&getAccountMapping("other_income")>0; }
+    private void postInvoiceJournalIfConfigured(String type,long invoiceId,double total,double netSales,double tax,double inventoryCost) {
+        boolean customer=isCustomerInvoice(type),ret=isReturn(type);long party=getAccountMapping(customer?"accounts_receivable":"accounts_payable");
+        long inventory=getAccountMapping("inventory_asset"),revenue=getAccountMapping(customer?"sales_revenue":"inventory_asset"),cogs=getAccountMapping("cost_of_goods_sold"),taxAccount=getAccountMapping("tax_payable");
+        List<Long> ids=new java.util.ArrayList<>();List<Double> debits=new java.util.ArrayList<>(),credits=new java.util.ArrayList<>();
+        if(customer){if(party==0||revenue==0||inventory==0||cogs==0||(tax>0&&taxAccount==0))return;
+            if(!ret){ids.add(party);debits.add(total);credits.add(0.0);ids.add(revenue);debits.add(0.0);credits.add(netSales);}
+            else{ids.add(revenue);debits.add(netSales);credits.add(0.0);ids.add(party);debits.add(0.0);credits.add(total);}
+            if(tax>0){ids.add(taxAccount);debits.add(ret?tax:0.0);credits.add(ret?0.0:tax);}
+            if(inventoryCost>0){ids.add(ret?inventory:cogs);debits.add(inventoryCost);credits.add(0.0);ids.add(ret?cogs:inventory);debits.add(0.0);credits.add(inventoryCost);}
+        }else{if(party==0||inventory==0)return;ids.add(ret?party:inventory);debits.add(total);credits.add(0.0);ids.add(ret?inventory:party);debits.add(0.0);credits.add(total);}
+        saveJournalEntry((ret?"مرتجع ":"فاتورة ")+type,"invoice",invoiceId,ids,debits,credits);
+    }
+    private void reverseJournalSource(String sourceType,long sourceId,String reversalType,String description) {
+        try(Cursor entry=getReadableDatabase().rawQuery("SELECT _id FROM journal_entries WHERE source_type=? AND source_id=?",new String[]{sourceType,String.valueOf(sourceId)})){
+            if(!entry.moveToFirst())return;long entryId=entry.getLong(0);List<Long> ids=new java.util.ArrayList<>();List<Double> debits=new java.util.ArrayList<>(),credits=new java.util.ArrayList<>();
+            try(Cursor lines=getReadableDatabase().rawQuery("SELECT account_id,debit,credit FROM journal_lines WHERE entry_id=? ORDER BY line_no",new String[]{String.valueOf(entryId)})){while(lines.moveToNext()){ids.add(lines.getLong(0));debits.add(lines.getDouble(2));credits.add(lines.getDouble(1));}}
+            if(!ids.isEmpty())saveJournalEntry(description,reversalType,sourceId,ids,debits,credits);
+        }
+    }
+    public Cursor trialBalance() { return getReadableDatabase().rawQuery("SELECT a._id,a.code,a.name,a.type,COALESCE(SUM(l.debit),0),COALESCE(SUM(l.credit),0),COALESCE(SUM(l.debit)-SUM(l.credit),0) FROM accounts a LEFT JOIN journal_lines l ON l.account_id=a._id WHERE a.is_group=0 GROUP BY a._id,a.code,a.name,a.type ORDER BY a.code,a.name",null); }
+    public double journalBalanceByAccountType(String type) { try(Cursor c=getReadableDatabase().rawQuery("SELECT COALESCE(SUM(l.debit)-SUM(l.credit),0) FROM accounts a LEFT JOIN journal_lines l ON l.account_id=a._id WHERE a.is_group=0 AND a.type=?",new String[]{type})){return c.moveToFirst()?c.getDouble(0):0;} }
 
     public long saveTransaction(String account, String description, double debit, double credit) {
         if (account.trim().isEmpty() || debit < 0 || credit < 0 || (debit == 0 && credit == 0)) {
@@ -500,6 +544,7 @@ public final class DatabaseHelper extends SQLiteOpenHelper {
                     if (legacyParty.moveToFirst()) partyId = legacyParty.getLong(0);
                 }
             }
+            reverseJournalSource("invoice", invoiceId, "invoice-reversal", "عكس حذف الفاتورة رقم " + invoiceId);
             double balanceDelta = isReturn(type) ? total : -total;
             if (partyId > 0) {
                 db.execSQL("UPDATE " + partyTable + " SET balance = balance + ? WHERE _id=?",
@@ -590,6 +635,14 @@ public final class DatabaseHelper extends SQLiteOpenHelper {
             movement.put("notes", (customerReceipt ? "تحصيل من العميل" : "سداد للمورد") +
                     (notes == null || notes.trim().isEmpty() ? "" : ": " + notes.trim()));
             db.insertOrThrow("cash_movements", null, movement);
+            long cashAccount = getAccountMapping("cash");
+            long partyAccount = getAccountMapping("customers".equals(entityTable) ? "accounts_receivable" : "accounts_payable");
+            if (cashAccount > 0 && partyAccount > 0) {
+                List<Long> ids = java.util.Arrays.asList(cashAccount, partyAccount);
+                List<Double> debits = customerReceipt ? java.util.Arrays.asList(amount, 0.0) : java.util.Arrays.asList(0.0, amount);
+                List<Double> credits = customerReceipt ? java.util.Arrays.asList(0.0, amount) : java.util.Arrays.asList(amount, 0.0);
+                saveJournalEntry(customerReceipt ? "تحصيل من العميل" : "سداد للمورد", "payment", paymentId, ids, debits, credits);
+            }
             db.setTransactionSuccessful();
             return paymentId;
         } finally {
@@ -647,6 +700,14 @@ public final class DatabaseHelper extends SQLiteOpenHelper {
             movement.put("expense_id", expenseId);
             movement.put("notes", (income ? "إيراد: " : "مصروف: ") + title.trim());
             db.insertOrThrow("cash_movements", null, movement);
+            long cashAccount = getAccountMapping("cash");
+            long categoryAccount = getAccountMapping(income ? "other_income" : "expenses");
+            if (cashAccount > 0 && categoryAccount > 0) {
+                List<Long> ids = java.util.Arrays.asList(cashAccount, categoryAccount);
+                List<Double> debits = income ? java.util.Arrays.asList(amount, 0.0) : java.util.Arrays.asList(0.0, amount);
+                List<Double> credits = income ? java.util.Arrays.asList(0.0, amount) : java.util.Arrays.asList(amount, 0.0);
+                saveJournalEntry(income ? "إثبات إيراد: " + title.trim() : "إثبات مصروف: " + title.trim(), "expense", expenseId, ids, debits, credits);
+            }
             db.setTransactionSuccessful();
             return expenseId;
         } finally {

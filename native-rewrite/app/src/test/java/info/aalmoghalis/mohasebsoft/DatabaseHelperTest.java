@@ -367,6 +367,30 @@ public class DatabaseHelperTest {
         ContentValues v=new ContentValues();v.put("name",name);v.put("type","أصل");v.put("opening_balance",0);v.put("code",code);v.put("parent_account_id",parent);v.put("is_group",group);v.put("is_active",active);return helper.saveEntity("accounts",0,v);
     }
 
+    @Test public void configuredInvoicePostingIsBalancedAndDeletionCreatesReversal() {
+        long ar=saveAccount("ذمم العملاء","أصل"),sales=saveAccount("المبيعات","إيراد"),inventory=saveAccount("المخزون","أصل"),cogs=saveAccount("تكلفة المبيعات","مصروف");
+        helper.setAccountMapping("accounts_receivable",ar);helper.setAccountMapping("sales_revenue",sales);helper.setAccountMapping("inventory_asset",inventory);helper.setAccountMapping("cost_of_goods_sold",cogs);
+        long customer=saveParty("customers","عميل الترحيل"),item=saveItem("صنف الترحيل",5,8,2);
+        long invoice=helper.saveInvoiceMulti("بيع","عميل الترحيل",Collections.singletonList(item),Collections.singletonList("صنف الترحيل"),Collections.singletonList(1.0),Collections.singletonList(8.0),"ترحيل آلي");
+        assertEquals(1,helper.count("journal_entries"));assertEquals(10.0,helper.journalDebitTotal(),0.0001);assertEquals(10.0,helper.journalCreditTotal(),0.0001);
+        helper.deleteInvoice(invoice);assertEquals(2,helper.count("journal_entries"));assertEquals(helper.journalDebitTotal(),helper.journalCreditTotal(),0.0001);assertEquals(0.0,partyBalance("customers",customer),0.0001);
+        try(Cursor c=helper.getReadableDatabase().rawQuery("SELECT source_type FROM journal_entries WHERE source_id=? ORDER BY _id DESC",new String[]{String.valueOf(invoice)})){assertTrue(c.moveToFirst());assertEquals("invoice-reversal",c.getString(0));}
+    }
+    @Test public void configuredPaymentsAndExpensesPostBalancedJournalEntries() {
+        long cash=saveAccount("الصندوق المحاسبي","أصل"),ar=saveAccount("ذمم العملاء المحاسبية","أصل"),ap=saveAccount("ذمم الموردين المحاسبية","خصم"),expense=saveAccount("المصروفات التشغيلية","مصروف"),income=saveAccount("الإيرادات الأخرى","إيراد");
+        helper.setAccountMapping("cash",cash);helper.setAccountMapping("accounts_receivable",ar);helper.setAccountMapping("accounts_payable",ap);helper.setAccountMapping("expenses",expense);helper.setAccountMapping("other_income",income);
+        long customer=saveParty("customers","عميل التحصيل"),supplier=saveParty("suppliers","مورد السداد");ContentValues bal=new ContentValues();bal.put("balance",50);
+        helper.getWritableDatabase().update("customers",bal,"_id=?",new String[]{String.valueOf(customer)});helper.getWritableDatabase().update("suppliers",bal,"_id=?",new String[]{String.valueOf(supplier)});
+        ContentValues box=new ContentValues();box.put("name","صندوق الترحيل");box.put("currency","محلي");box.put("balance",100);long boxId=helper.saveEntity("cash_boxes",0,box);
+        helper.savePayment("customers",customer,"عميل التحصيل",10,"تحصيل",boxId);helper.savePayment("suppliers",supplier,"مورد السداد",5,"سداد",boxId);
+        helper.saveExpense("مصروف","إيجار","تشغيل",3,"مصروف",boxId);helper.saveExpense("إيراد","دخل إضافي","متنوع",4,"دخل",boxId);
+        assertEquals(4,helper.count("journal_entries"));assertEquals(helper.journalDebitTotal(),helper.journalCreditTotal(),0.0001);
+    }
+    @Test public void accountMappingRejectsGroupAndInactiveAccounts() {
+        long group=saveAccountHierarchy("مجموعة ربط","800",0,1,1),inactive=saveAccountHierarchy("حساب ربط موقوف","801",0,0,0);boolean a=false,b=false;
+        try{helper.setAccountMapping("cash",group);}catch(IllegalArgumentException e){a=true;}try{helper.setAccountMapping("cash",inactive);}catch(IllegalArgumentException e){b=true;}assertTrue(a);assertTrue(b);
+    }
+
     private long saveParty(String table, String name) {
         ContentValues values = new ContentValues();
         values.put("name", name);

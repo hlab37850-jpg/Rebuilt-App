@@ -23,13 +23,13 @@ Categories/units/item types,Master data,should,yes,partial,Some CRUD; links inco
 Currencies and exchange rates,Accounting,should,yes,partial,No effective-dated rate history
 Taxes and tax identity,Compliance,should,yes,partial,Compliance workflow incomplete
 Chart of accounts,Accounting,must,yes,partial,Version 10 adds account code, parent hierarchy, group/leaf and active status; hierarchy display and journal posting restrictions implemented; standard account mapping remains
-Balanced double-entry journal,Accounting,must,yes,partial,Version 9/10 provide atomic balanced headers and lines, duplicate-source protection, account validation and group/inactive-account posting guards; automatic business-source posting remains
+Balanced double-entry journal,Accounting,must,yes,partial,Version 11 adds configurable account mapping and automatic balanced posting for new invoices, receipts/payments and income/expenses; deleting a posted invoice creates a reversing entry; historical records are not backfilled
 Cash boxes and banks,Accounting,must,yes,partial,Deletion blocked when cash movements exist; reconcile with vouchers remains
 Cash deposits/withdrawals,Accounting,must,yes,partial,Need journal and audit linkage
-Expenses and income,Accounting,must,yes,partial,New income/expense entries update selected cash box atomically and link a cash movement; period filters and journal posting remain incomplete
-Trial balance,Reports,must,yes,partial,Needs complete account-level ledger
-Balance sheet,Reports,must,yes,partial,Current output explicitly estimated
-Profit/loss by period,Reports,must,yes,no,Not implemented
+Expenses and income,Accounting,must,yes,partial,New income/expense entries post balanced journal entries when mappings are configured; unmapped transactions remain operational but are not in ledger reports
+Trial balance,Reports,must,yes,partial,Now reads account-level balances from journal_lines; opening balances and unmapped legacy operations must still be posted
+Balance sheet,Reports,must,yes,partial,Now summarizes posted ledger balances by account type; opening balances and full equity/liability classifications remain required
+Profit/loss by period,Reports,must,yes,partial,Ledger-based revenue/expense summary added; date-range filters and period controls remain
 Sales/purchases by item,Reports,should,yes,partial,No date filters or cost method
 Advanced report filters/sort,Reports,should,yes,partial,Date-range tables not implemented
 Account statement PDF/print,Output,should,yes,no,Full statement export missing

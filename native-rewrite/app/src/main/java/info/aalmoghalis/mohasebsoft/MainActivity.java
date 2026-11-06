@@ -1054,7 +1054,8 @@ public final class MainActivity extends Activity {
         addReportLink("المشتريات حسب الصنف", () -> showItemSalesReport("شراء"));
         addReportLink("تفاصيل حركة الأصناف", () -> navigate("حركة الأصناف"));
         addReportLink("ميزان المراجعة", this::showTrialBalanceReport);
-        addReportLink("ملخص الأصول والالتزامات", this::showBalanceSheetReport);
+        addReportLink("قائمة الأرباح والخسائر", this::showProfitLossReport);
+        addReportLink("الميزانية من دفتر القيود", this::showBalanceSheetReport);
         TextView disclaimer = text("تقارير الأرباح ورأس المال تقديرية؛ لا تُحسب تكلفة تاريخية للفاتورة إلا إذا كانت محفوظة وقت البيع.", 12, Color.GRAY, false);
         disclaimer.setPadding(0, dp(12), 0, 0);
         page.addView(disclaimer);
@@ -1177,46 +1178,36 @@ public final class MainActivity extends Activity {
     }
 
     private void showTrialBalanceReport() {
-        page.removeAllViews();
-        addHeading("ميزان المراجعة", "إجماليات المدين والدائن حسب الحسابات المسجلة");
-        double debitTotal = 0;
-        double creditTotal = 0;
-        int accountRows = 0;
-        try (Cursor c = database.getReadableDatabase().rawQuery(
-            "SELECT account_name, COALESCE(SUM(debit),0), COALESCE(SUM(credit),0), " +
-            "COALESCE(SUM(debit)-SUM(credit),0) FROM transactions GROUP BY account_name ORDER BY account_name", null)) {
-            while (c.moveToNext()) {
-                accountRows++;
-                debitTotal += c.getDouble(1);
-                creditTotal += c.getDouble(2);
-                LinearLayout row = card();
-                row.addView(text(c.getString(0), 15, DARK, true));
-                row.addView(text("مدين: " + money(c.getDouble(1)) + " • دائن: " + money(c.getDouble(2)), 12, Color.GRAY, false));
-                row.addView(text("الرصيد: " + money(c.getDouble(3)), 12, BLUE, true));
-                page.addView(row);
-            }
-        }
-        addMetric("إجمالي المدين", debitTotal, "transactions");
-        addMetric("إجمالي الدائن", creditTotal, "transactions");
-        addMetric("الفرق", debitTotal - creditTotal, "transactions");
-        if (accountRows == 0) page.addView(text("لا توجد قيود محاسبية مسجلة حتى الآن.", 13, Color.GRAY, false));
+        page.removeAllViews();addHeading("ميزان المراجعة","الأرصدة المستخرجة من دفتر الأستاذ ذي القيد المزدوج");double debit=0,credit=0;int rows=0;
+        try(Cursor c=database.trialBalance()){while(c.moveToNext()){rows++;debit+=c.getDouble(4);credit+=c.getDouble(5);LinearLayout row=card();String code=c.getString(1)==null?"":c.getString(1);
+            row.addView(text((code.isEmpty()?"":code+" • ")+c.getString(2)+" ("+c.getString(3)+")",14,DARK,true));row.addView(text("مدين: "+money(c.getDouble(4))+" • دائن: "+money(c.getDouble(5))+" • الصافي: "+money(c.getDouble(6)),12,Color.GRAY,false));page.addView(row);}}
+        addMetric("إجمالي المدين",debit,"transactions");addMetric("إجمالي الدائن",credit,"transactions");addMetric("فرق ميزان المراجعة",debit-credit,"transactions");
+        if(rows==0)page.addView(text("لا توجد قيود في دفتر الأستاذ. اربط الحسابات ثم سجّل العمليات أو أضف قيودًا يومية.",13,Color.GRAY,false));
+    }
+    private void showProfitLossReport() {
+        page.removeAllViews();addHeading("قائمة الأرباح والخسائر","تُحتسب من حسابات الإيرادات والمصروفات في دفتر القيود فقط");
+        double revenue=-database.journalBalanceByAccountType("إيراد"),expenses=database.journalBalanceByAccountType("مصروف");
+        addMetric("الإيرادات المرحلة",revenue,"transactions");addMetric("المصروفات المرحلة",expenses,"transactions");addMetric("صافي الربح / (الخسارة)",revenue-expenses,"transactions");
+        page.addView(text("تعتمد الدقة على تصنيف الحسابات في الدليل وترحيل جميع العمليات. السجلات السابقة لإعداد الربط لا تظهر تلقائيًا.",12,Color.GRAY,false));
+    }
+    private void showBalanceSheetReport() {
+        page.removeAllViews();addHeading("الميزانية من دفتر القيود","ملخص حسابات الأستاذ بحسب تصنيفها المحاسبي");
+        double assets=database.journalBalanceByAccountType("أصل"),liabilities=-database.journalBalanceByAccountType("خصم"),equity=-database.journalBalanceByAccountType("حقوق ملكية");
+        addMetric("صافي الأصول",assets,"accounts");addMetric("الالتزامات",liabilities,"accounts");addMetric("حقوق الملكية",equity,"accounts");addMetric("فرق المعادلة",assets-liabilities-equity,"accounts");
+        page.addView(text("تعكس القائمة القيود المرحلة فقط؛ يجب إدخال الأرصدة الافتتاحية وتسويات الأصول والالتزامات وحقوق الملكية قبل اعتمادها كميزانية رسمية.",12,Color.GRAY,false));
     }
 
-    private void showBalanceSheetReport() {
-        page.removeAllViews();
-        addHeading("ملخص الأصول والالتزامات", "ملخص تقديري من أرصدة العملاء والموردين والصناديق والمخزون");
-        double customerBalances = accountBalanceTotal("customers");
-        double supplierBalances = accountBalanceTotal("suppliers");
-        double cash = database.sum("cash_boxes", "balance");
-        double inventory = database.inventoryValue();
-        double assets = customerBalances + cash + inventory;
-        double liabilities = supplierBalances;
-        addMetric("أرصدة العملاء", customerBalances, "customers");
-        addMetric("أرصدة الصناديق والبنوك", cash, "cash_boxes");
-        addMetric("قيمة المخزون بسعر البيع", inventory, "items");
-        addMetric("أرصدة الموردين", liabilities, "suppliers");
-        addMetric("صافي الأصول التقديري", assets - liabilities, "accounts");
-        page.addView(text("هذا ملخص تشغيلي تقديري، وليس ميزانية عمومية معتمدة؛ لا يشمل جميع القيود والتسويات.", 12, Color.GRAY, false));
+    private void showAccountMappings() {
+        page.removeAllViews();addHeading("ربط الحسابات المحاسبية","حدد حسابات الأستاذ التي تستخدمها العمليات في الترحيل الآلي");
+        String[] keys={"accounts_receivable","accounts_payable","sales_revenue","inventory_asset","cost_of_goods_sold","tax_payable","cash","expenses","other_income"};
+        String[] labels={"ذمم العملاء","ذمم الموردين","إيرادات المبيعات","المخزون","تكلفة البضاعة المباعة","ضريبة مستحقة","الصندوق/البنك","المصروفات","الإيرادات الأخرى"};
+        List<Long> ids=new ArrayList<>();List<String> names=new ArrayList<>();ids.add(0L);names.add("-- غير محدد --");
+        try(Cursor c=database.getReadableDatabase().rawQuery("SELECT _id,name,code FROM accounts WHERE is_group=0 AND is_active=1 ORDER BY code,name",null)){while(c.moveToNext()){ids.add(c.getLong(0));String code=c.getString(2);names.add((code==null||code.isEmpty()?"":code+" • ")+c.getString(1));}}
+        List<Spinner> spinners=new ArrayList<>();
+        for(int i=0;i<keys.length;i++){LinearLayout row=card();row.addView(text(labels[i],14,DARK,true));Spinner sp=new Spinner(this);sp.setAdapter(new ArrayAdapter<>(this,android.R.layout.simple_spinner_dropdown_item,names));int pos=ids.indexOf(database.getAccountMapping(keys[i]));sp.setSelection(Math.max(0,pos));row.addView(sp,matchWrap());page.addView(row);spinners.add(sp);}
+        Button save=button("حفظ ربط الحسابات",BLUE,Color.WHITE);page.addView(save,matchWrap());
+        save.setOnClickListener(v->{try{for(int i=0;i<keys.length;i++)database.setAccountMapping(keys[i],ids.get(spinners.get(i).getSelectedItemPosition()));toast("تم حفظ ربط الحسابات");navigate("الإعدادات");}catch(Exception ex){toast("تعذر حفظ الربط: "+ex.getMessage());}});
+        page.addView(text("العمليات السابقة لا تُرحّل تلقائيًا. يبدأ الترحيل للعمليات الجديدة عند اكتمال ربط الحسابات المطلوبة. اضبط تصنيف الحسابات في الدليل بدقة.",12,Color.GRAY,false));
     }
 
     private void showSettings() {
@@ -1226,6 +1217,8 @@ public final class MainActivity extends Activity {
         card.addView(text("قاعدة البيانات", 17, DARK, true));
         card.addView(text("تُحفظ البيانات في ملف SQLite محلي باسم mohaseb_soft.db داخل مساحة التطبيق.", 14, Color.GRAY, false));
         page.addView(card);
+        Button mappings = button("ربط الحسابات بالقيود الآلية", Color.WHITE, DARK);
+        page.addView(mappings, matchWrap());mappings.setOnClickListener(v -> showAccountMappings());
         Button backup = button("حفظ نسخة احتياطية من قاعدة البيانات", BLUE, Color.WHITE);
         page.addView(backup, matchWrap());
         backup.setOnClickListener(v -> {
