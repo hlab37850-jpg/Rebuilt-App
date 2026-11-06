@@ -1299,6 +1299,26 @@ public final class MainActivity extends Activity {
             .setMessage(report.toString()).setPositiveButton("إغلاق", null).show();
     }
 
+    private void exportAuditLog(Uri uri) {
+        try (OutputStream out = getContentResolver().openOutputStream(uri)) {
+            if (out == null) throw new IllegalStateException("تعذر فتح ملف التصدير");
+            try (OutputStreamWriter writer = new OutputStreamWriter(out, StandardCharsets.UTF_8);
+                 Cursor c = database.auditLog(500)) {
+                writer.write("\"id\",\"action\",\"entity\",\"entity_id\",\"created_at\"\\n");
+                while (c.moveToNext()) {
+                    for (int i = 0; i < 5; i++) {
+                        if (i > 0) writer.write(",");
+                        writer.write(csv(c.isNull(i) ? "" : c.getString(i)));
+                    }
+                    writer.write("\\n");
+                }
+                writer.flush();
+            }
+            database.recordAudit("تصدير سجل التدقيق", "audit_log", 0);
+            toast("تم تصدير سجل التدقيق");
+        } catch (Exception ex) { toast("فشل تصدير سجل التدقيق: " + ex.getMessage()); }
+    }
+
     private void showSettings() {
         page.removeAllViews();
         addHeading("الإعدادات", "إدارة بيانات التطبيق");
@@ -1314,6 +1334,15 @@ public final class MainActivity extends Activity {
         Button audit = button("عرض سجل التدقيق", Color.WHITE, DARK);
         page.addView(audit, matchWrap());
         audit.setOnClickListener(v -> showAuditLog());
+        Button auditExport = button("تصدير سجل التدقيق CSV", Color.WHITE, DARK);
+        page.addView(auditExport, matchWrap());
+        auditExport.setOnClickListener(v -> {
+            Intent intent = new Intent(Intent.ACTION_CREATE_DOCUMENT);
+            intent.addCategory(Intent.CATEGORY_OPENABLE);
+            intent.setType("text/csv");
+            intent.putExtra(Intent.EXTRA_TITLE, "mohaseb-soft-audit.csv");
+            startActivityForResult(intent, 45);
+        });
         Button backup = button("حفظ نسخة احتياطية من قاعدة البيانات", BLUE, Color.WHITE);
         page.addView(backup, matchWrap());
         backup.setOnClickListener(v -> {
@@ -1407,6 +1436,10 @@ public final class MainActivity extends Activity {
             importCsvFile(data.getData());
             return;
         }
+        if (requestCode == 45) {
+            exportAuditLog(data.getData());
+            return;
+        }
         if (requestCode != 41) return;
         try (OutputStream out = getContentResolver().openOutputStream(data.getData());
              OutputStreamWriter writer = new OutputStreamWriter(out, StandardCharsets.UTF_8)) {
@@ -1458,29 +1491,43 @@ public final class MainActivity extends Activity {
     private void importCsvFile(Uri uri) {
         int imported = 0;
         int skipped = 0;
+        String section = "";
+        boolean exportedFormat = false;
+        StringBuilder pendingRecord = new StringBuilder();
         try (InputStream in = getContentResolver().openInputStream(uri);
              BufferedReader reader = new BufferedReader(new InputStreamReader(in, StandardCharsets.UTF_8))) {
             String line;
-            String section = "";
-            boolean exportedFormat = false;
             while ((line = reader.readLine()) != null) {
-                String trimmed = line.trim();
-                if (trimmed.isEmpty()) continue;
-                if (trimmed.startsWith("# ")) {
-                    section = trimmed.substring(2).trim();
-                    exportedFormat = false;
+                if (pendingRecord.length() == 0) {
+                    String trimmed = line.trim();
+                    if (trimmed.isEmpty()) continue;
+                    if (trimmed.startsWith("# ")) {
+                        section = trimmed.substring(2).trim();
+                        exportedFormat = false;
+                        continue;
+                    }
+                    if (!section.isEmpty() && !section.equals(importTarget)) continue;
+                } else {
+                    pendingRecord.append('\n');
+                }
+                pendingRecord.append(line);
+                List<String> cells;
+                try {
+                    cells = parseCsvLine(pendingRecord.toString());
+                } catch (IllegalArgumentException malformed) {
+                    if ("اقتباس غير مكتمل".equals(malformed.getMessage())) continue;
+                    skipped++;
+                    pendingRecord.setLength(0);
                     continue;
                 }
-                if (!section.isEmpty() && !section.equals(importTarget)) continue;
-                List<String> cells = parseCsvLine(line);
+                pendingRecord.setLength(0);
                 if (cells.isEmpty()) continue;
                 String firstCell = cells.get(0).replace(String.valueOf((char) 0xFEFF), "").trim();
                 if (firstCell.equalsIgnoreCase("_id")) {
                     exportedFormat = true;
                     continue;
                 }
-                if (firstCell.equalsIgnoreCase("name")) continue;
-                if (firstCell.startsWith("#")) continue;
+                if (firstCell.equalsIgnoreCase("name") || firstCell.startsWith("#")) continue;
                 if (exportedFormat && !cells.isEmpty()) cells = new ArrayList<>(cells.subList(1, cells.size()));
                 try {
                     ContentValues values = csvValues(importTarget, cells);
@@ -1493,6 +1540,7 @@ public final class MainActivity extends Activity {
                     imported++;
                 } catch (Exception ex) { skipped++; }
             }
+            if (pendingRecord.length() > 0) skipped++;
             database.recordAudit("استيراد CSV: " + imported + " ناجح / " + skipped + " متجاوز", importTarget, imported);
             toast("اكتمل الاستيراد: " + imported + " سجل، وتم تجاوز " + skipped + " سجل.");
             navigate("الإعدادات");
@@ -1532,7 +1580,7 @@ public final class MainActivity extends Activity {
         return index < cells.size() ? cells.get(index).trim() : "";
     }
 
-    private List<String> parseCsvLine(String line) {
+    static List<String> parseCsvLine(String line) {
         List<String> cells = new ArrayList<>();
         StringBuilder value = new StringBuilder();
         boolean quoted = false;
@@ -1545,6 +1593,7 @@ public final class MainActivity extends Activity {
                 cells.add(value.toString()); value.setLength(0);
             } else value.append(ch);
         }
+        if (quoted) throw new IllegalArgumentException("اقتباس غير مكتمل");
         cells.add(value.toString());
         return cells;
     }

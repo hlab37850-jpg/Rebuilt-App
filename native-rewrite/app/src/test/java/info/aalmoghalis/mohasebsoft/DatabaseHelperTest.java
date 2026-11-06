@@ -413,6 +413,21 @@ public class DatabaseHelperTest {
         assertTrue(!helper.hasAppPin());
     }
 
+    @Test public void csvParserSupportsCommasEscapedQuotesAndMultilineFields() {
+        java.util.List<String> cells = MainActivity.parseCsvLine("\"اسم, مركب\",\"السطر الأول\\nالسطر الثاني\",\"قال \"\"مرحباً\"\"\"");
+        assertEquals(3, cells.size());
+        assertEquals("اسم, مركب", cells.get(0));
+        assertEquals("السطر الأول\\nالسطر الثاني", cells.get(1));
+        assertEquals("قال \"مرحباً\"", cells.get(2));
+    }
+
+    @Test public void csvParserRejectsUnclosedQuotedField() {
+        boolean rejected = false;
+        try { MainActivity.parseCsvLine("\"حقل غير مكتمل"); }
+        catch (IllegalArgumentException expected) { rejected = "اقتباس غير مكتمل".equals(expected.getMessage()); }
+        assertTrue(rejected);
+    }
+
     @Test public void auditLogRecordsCrudAndSecurityEvents() {
         helper.setAppPin("2468");
         ContentValues v=new ContentValues();v.put("name","سجل تدقيق");v.put("opening_balance",0);

@@ -108,6 +108,8 @@ public final class DatabaseHelper extends SQLiteOpenHelper {
     }
 
     public void setAppPin(String pin) {
+        if (pin == null || !pin.matches("[0-9]{4,8}"))
+            throw new IllegalArgumentException("رمز القفل يجب أن يتكون من 4 إلى 8 أرقام");
         if (hasAppPin()) throw new IllegalStateException("أدخل الرمز الحالي قبل تغييره");
         saveAppPin(pin);
     }
