@@ -35,6 +35,9 @@ jobs:
         with:
           gradle-version: '8.9'
 
+      - name: Run database and accounting unit tests
+        run: gradle -p native-rewrite --no-daemon testDebugUnitTest
+
       - name: Build debug APK
         run: gradle -p native-rewrite --no-daemon assembleDebug
 
