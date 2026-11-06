@@ -150,7 +150,59 @@ public final class DatabaseHelper extends SQLiteOpenHelper {
 
     public int delete(String table, long id) {
         if (!isAllowed(table)) throw new IllegalArgumentException("Unsupported table");
-        return getWritableDatabase().delete(table, "_id=?", new String[]{String.valueOf(id)});
+        SQLiteDatabase db = getWritableDatabase();
+        db.beginTransaction();
+        try {
+            String name = null;
+            if ("customers".equals(table) || "suppliers".equals(table)
+                    || "accounts".equals(table) || "currencies".equals(table)) {
+                try (Cursor row = db.rawQuery("SELECT name FROM " + table + " WHERE _id=?",
+                        new String[]{String.valueOf(id)})) {
+                    if (row.moveToFirst()) name = row.getString(0);
+                }
+            }
+            long references = 0;
+            if ("customers".equals(table) || "suppliers".equals(table)) {
+                String partyTable = table;
+                references += scalarCount(db,
+                    "SELECT COUNT(*) FROM invoices WHERE (party_table=? AND party_id=?) OR " +
+                    "(party_name=? COLLATE NOCASE AND type IN (" +
+                    ("customers".equals(table) ? "'بيع','مرتجع بيع'" : "'شراء','مرتجع شراء'") + "))",
+                    new String[]{partyTable, String.valueOf(id), name == null ? "" : name});
+                references += scalarCount(db,
+                    "SELECT COUNT(*) FROM payments WHERE entity_table=? AND entity_id=?",
+                    new String[]{table, String.valueOf(id)});
+            } else if ("items".equals(table)) {
+                references += scalarCount(db, "SELECT COUNT(*) FROM invoice_lines WHERE item_id=?",
+                    new String[]{String.valueOf(id)});
+                references += scalarCount(db, "SELECT COUNT(*) FROM item_movements WHERE item_id=?",
+                    new String[]{String.valueOf(id)});
+            } else if ("cash_boxes".equals(table)) {
+                references += scalarCount(db, "SELECT COUNT(*) FROM cash_movements WHERE cash_box_id=?",
+                    new String[]{String.valueOf(id)});
+            } else if ("accounts".equals(table) && name != null) {
+                references += scalarCount(db, "SELECT COUNT(*) FROM transactions WHERE account_name=? COLLATE NOCASE",
+                    new String[]{name});
+            } else if ("currencies".equals(table) && name != null) {
+                references += scalarCount(db, "SELECT COUNT(*) FROM invoices WHERE currency_name=? COLLATE NOCASE",
+                    new String[]{name});
+            }
+            if (references > 0) {
+                throw new IllegalStateException("لا يمكن حذف السجل لوجود " + references +
+                    " حركة أو مستند مرتبط به. احتفظ بالسجل أو عالج المستندات المرتبطة أولاً.");
+            }
+            int deleted = db.delete(table, "_id=?", new String[]{String.valueOf(id)});
+            db.setTransactionSuccessful();
+            return deleted;
+        } finally {
+            db.endTransaction();
+        }
+    }
+
+    private long scalarCount(SQLiteDatabase db, String sql, String[] args) {
+        try (Cursor c = db.rawQuery(sql, args)) {
+            return c.moveToFirst() ? c.getLong(0) : 0;
+        }
     }
 
     public long saveInvoice(String type, String party, long itemId, String itemName,
