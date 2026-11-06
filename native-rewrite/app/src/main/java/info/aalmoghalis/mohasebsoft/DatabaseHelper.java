@@ -468,6 +468,7 @@ public final class DatabaseHelper extends SQLiteOpenHelper {
             db.execSQL("UPDATE " + partyTable + " SET balance = balance + ? WHERE _id=?",
                 new Object[]{balanceDelta, partyId});
             postInvoiceJournalIfConfigured(type, invoiceId, total, subtotal - discountBase, taxAmount, inventoryCost);
+            recordAudit("إنشاء فاتورة " + type, "invoices", invoiceId);
             db.setTransactionSuccessful();
             return invoiceId;
         } finally { db.endTransaction(); }
@@ -643,6 +644,7 @@ public final class DatabaseHelper extends SQLiteOpenHelper {
             }
             db.delete("invoice_lines", "invoice_id=?", new String[]{String.valueOf(invoiceId)});
             db.delete("invoices", "_id=?", new String[]{String.valueOf(invoiceId)});
+            recordAudit("حذف فاتورة وعكس قيدها", "invoices", invoiceId);
             db.setTransactionSuccessful();
         } finally { db.endTransaction(); }
     }
@@ -665,6 +667,7 @@ public final class DatabaseHelper extends SQLiteOpenHelper {
             values.put("cash_box_id", boxId); values.put("box_name", boxName);
             values.put("type", type); values.put("amount", amount); values.put("notes", notes == null ? "" : notes.trim());
             long id = db.insertOrThrow("cash_movements", null, values);
+            recordAudit("حركة صندوق: " + type, "cash_movements", id);
             db.setTransactionSuccessful();
             return id;
         } finally { db.endTransaction(); }
@@ -734,6 +737,7 @@ public final class DatabaseHelper extends SQLiteOpenHelper {
                 List<Double> credits = customerReceipt ? java.util.Arrays.asList(0.0, amount) : java.util.Arrays.asList(amount, 0.0);
                 saveJournalEntry(customerReceipt ? "تحصيل من العميل" : "سداد للمورد", "payment", paymentId, ids, debits, credits);
             }
+            recordAudit("تسجيل " + (customerReceipt ? "تحصيل عميل" : "سداد مورد"), "payments", paymentId);
             db.setTransactionSuccessful();
             return paymentId;
         } finally {
@@ -799,6 +803,7 @@ public final class DatabaseHelper extends SQLiteOpenHelper {
                 List<Double> credits = income ? java.util.Arrays.asList(0.0, amount) : java.util.Arrays.asList(amount, 0.0);
                 saveJournalEntry(income ? "إثبات إيراد: " + title.trim() : "إثبات مصروف: " + title.trim(), "expense", expenseId, ids, debits, credits);
             }
+            recordAudit("تسجيل " + type, "expenses", expenseId);
             db.setTransactionSuccessful();
             return expenseId;
         } finally {
@@ -833,6 +838,7 @@ public final class DatabaseHelper extends SQLiteOpenHelper {
             values.put("quantity", quantity);
             values.put("notes", notes == null ? "" : notes.trim());
             long id = db.insertOrThrow("item_movements", null, values);
+            recordAudit("حركة مخزون: " + type, "item_movements", id);
             db.setTransactionSuccessful();
             return id;
         } finally { db.endTransaction(); }

@@ -15,6 +15,7 @@ import android.os.Bundle;
 import android.print.PrintAttributes;
 import android.print.PrintManager;
 import android.webkit.WebView;
+import android.webkit.WebViewClient;
 import android.text.Editable;
 import android.text.TextWatcher;
 import android.view.Gravity;
@@ -813,12 +814,18 @@ public final class MainActivity extends Activity {
         }
         html.append("</table><h3>الإجمالي: ").append(money(total)).append("</h3></body></html>");
         WebView web = new WebView(this);
+        web.setWebViewClient(new WebViewClient() {
+            @Override public void onPageFinished(WebView view, String url) {
+                PrintManager manager = (PrintManager) getSystemService(PRINT_SERVICE);
+                if (manager != null) {
+                    manager.print("فاتورة-" + id, view.createPrintDocumentAdapter("فاتورة-" + id),
+                        new PrintAttributes.Builder().setMediaSize(PrintAttributes.MediaSize.ISO_A4).build());
+                } else {
+                    toast("خدمة الطباعة غير متاحة على هذا الجهاز");
+                }
+            }
+        });
         web.loadDataWithBaseURL(null, html.toString(), "text/html", "UTF-8", null);
-        web.postDelayed(() -> {
-            PrintManager manager = (PrintManager) getSystemService(PRINT_SERVICE);
-            if (manager != null) manager.print("فاتورة-" + id, web.createPrintDocumentAdapter("فاتورة-" + id),
-                new PrintAttributes.Builder().setMediaSize(PrintAttributes.MediaSize.ISO_A4).build());
-        }, 500);
     }
 
     private String htmlEscape(String value) {

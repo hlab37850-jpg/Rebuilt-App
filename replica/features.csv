@@ -43,7 +43,7 @@ Google Drive backup,Data,should,yes,no,Help guide documents it; rewrite has no i
 Live multi-device sync,Data,should,partial,no,Backup is not live sync
 Login/app lock,Security,should,yes,partial,Optional 4-8 digit salted SHA-256 app PIN is required on launch; this is an app-level lock, not OS/device encryption
 Users and permissions,Security,should,yes,partial,Single-owner PIN lock only; multi-user roles and per-module permissions remain unimplemented
-Audit log,Security,must,yes,partial,Records entity add/edit/delete and backup/restore/import/security events; full financial event coverage and audit export remain
+Audit log,Security,must,yes,partial,Records master-data CRUD, invoices, payments, expenses, cash/stock movements, backup/restore/import and security events; audit export and user attribution remain
 Reminders/notifications,Operations,could,yes,no,Not implemented
 ZATCA e-invoicing,Compliance,should,yes,no,Published version history mentions integration
 Monthly close/period lock,Accounting,should,no,no,Review-request opportunity, not confirmed as original

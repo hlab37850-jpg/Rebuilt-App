@@ -385,6 +385,7 @@ public class DatabaseHelperTest {
         helper.savePayment("customers",customer,"عميل التحصيل",10,"تحصيل",boxId);helper.savePayment("suppliers",supplier,"مورد السداد",5,"سداد",boxId);
         helper.saveExpense("مصروف","إيجار","تشغيل",3,"مصروف",boxId);helper.saveExpense("إيراد","دخل إضافي","متنوع",4,"دخل",boxId);
         assertEquals(4,helper.count("journal_entries"));assertEquals(helper.journalDebitTotal(),helper.journalCreditTotal(),0.0001);
+        try(Cursor audit=helper.getReadableDatabase().rawQuery("SELECT COUNT(*) FROM audit_log WHERE entity IN ('payments','expenses')",null)){assertTrue(audit.moveToFirst());assertEquals(4,audit.getInt(0));}
     }
     @Test public void accountMappingRejectsGroupAndInactiveAccounts() {
         long group=saveAccountHierarchy("مجموعة ربط","800",0,1,1),inactive=saveAccountHierarchy("حساب ربط موقوف","801",0,0,0);boolean a=false,b=false;
