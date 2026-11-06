@@ -5,7 +5,7 @@ Arabic RTL,UX,must,yes,partial,Verify every dialog and input
 Customer CRUD,Parties,must,yes,yes,Deletion now blocked when invoices or payments reference the customer; tested
 Supplier CRUD,Parties,must,yes,yes,Deletion now blocked when invoices or payments reference the supplier; tested
 Party statements,Parties,must,yes,partial,Period balances need reconciliation
-Receipts and payments,Accounting,must,yes,partial,Single settlement flow; cash/journal links incomplete
+Receipts and payments,Accounting,must,yes,partial,Party balance and selected cash box update atomically; payment-to-cash movement is linked; double-entry journal posting remains incomplete
 Item CRUD,Inventory,must,yes,yes,Deletion now blocked when invoice lines or stock movements reference the item; barcode/category/expiry gaps
 Barcode scan and label print,Inventory,should,yes,no,Not in rewrite
 Sales invoices,Sales,must,yes,partial,Create/list; editing and lifecycle incomplete

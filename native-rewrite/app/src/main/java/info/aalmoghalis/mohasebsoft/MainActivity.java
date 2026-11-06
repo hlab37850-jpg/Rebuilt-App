@@ -459,17 +459,39 @@ public final class MainActivity extends Activity {
         EditText amount = input("مبلغ السداد");
         amount.setInputType(8194);
         EditText notes = input("البيان/ملاحظات");
+        Spinner cashBox = new Spinner(this);
+        List<Long> cashBoxIds = new ArrayList<>();
+        List<String> cashBoxNames = new ArrayList<>();
+        cashBoxIds.add(0L);
+        cashBoxNames.add("اختر الصندوق النقدي");
+        try (Cursor boxes = database.list("cash_boxes")) {
+            while (boxes.moveToNext()) {
+                cashBoxIds.add(boxes.getLong(boxes.getColumnIndexOrThrow("_id")));
+                cashBoxNames.add(boxes.getString(boxes.getColumnIndexOrThrow("name")));
+            }
+        }
+        ArrayAdapter<String> boxAdapter = new ArrayAdapter<>(this,
+                android.R.layout.simple_spinner_item, cashBoxNames);
+        boxAdapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
+        cashBox.setAdapter(boxAdapter);
         form.addView(current, matchWrap());
+        form.addView(text("الصندوق/البنك الذي ستتم منه الحركة", 13, DARK, false), matchWrap());
+        form.addView(cashBox, matchWrap());
         form.addView(amount, matchWrap());
         form.addView(notes, matchWrap());
-        new AlertDialog.Builder(this).setTitle("سداد مبلغ").setView(form)
+        new AlertDialog.Builder(this).setTitle("سداد / تحصيل مبلغ").setView(form)
             .setNegativeButton("إلغاء", null)
-            .setPositiveButton("حفظ السداد", (d, w) -> {
+            .setPositiveButton("حفظ الحركة", (d, w) -> {
                 try {
-                    database.savePayment(table, id, name, parseNumber(amount.getText().toString()), notes.getText().toString());
-                    toast("تم تسجيل السداد وتحديث الرصيد");
+                    int selected = cashBox.getSelectedItemPosition();
+                    if (selected <= 0 || selected >= cashBoxIds.size())
+                        throw new IllegalArgumentException("اختر صندوقًا نقديًا أولاً");
+                    database.savePayment(table, id, name,
+                            parseNumber(amount.getText().toString()),
+                            notes.getText().toString(), cashBoxIds.get(selected));
+                    toast("تم تسجيل الحركة وتحديث رصيد الحساب والصندوق");
                     navigate(currentModule);
-                } catch (Exception ex) { toast("تعذر تسجيل السداد: " + ex.getMessage()); }
+                } catch (Exception ex) { toast("تعذر تسجيل الحركة: " + ex.getMessage()); }
             }).show();
     }
 

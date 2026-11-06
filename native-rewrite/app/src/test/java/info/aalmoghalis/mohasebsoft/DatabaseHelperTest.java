@@ -135,6 +135,85 @@ public class DatabaseHelperTest {
         assertDeleteBlocked("cash_boxes", boxId);
     }
 
+    @Test public void customerReceiptAndSupplierPaymentStayLinkedToCashBox() {
+        long customerId = saveParty("customers", "عميل السداد");
+        long supplierId = saveParty("suppliers", "مورد السداد");
+        ContentValues partyBalance = new ContentValues();
+        partyBalance.put("balance", 100);
+        helper.getWritableDatabase().update("customers", partyBalance, "_id=?",
+                new String[]{String.valueOf(customerId)});
+        helper.getWritableDatabase().update("suppliers", partyBalance, "_id=?",
+                new String[]{String.valueOf(supplierId)});
+        ContentValues box = new ContentValues();
+        box.put("name", "الصندوق الرئيسي");
+        box.put("currency", "محلي");
+        box.put("balance", 100);
+        long boxId = helper.saveEntity("cash_boxes", 0, box);
+        long receiptId = helper.savePayment("customers", customerId, "عميل السداد",
+                30, "تحصيل فاتورة", boxId);
+        assertEquals(70.0, partyBalance("customers", customerId), 0.0001);
+        assertEquals(130.0, cashBoxBalance(boxId), 0.0001);
+        assertPaymentMovement(receiptId, boxId, "إيداع");
+        long supplierPaymentId = helper.savePayment("suppliers", supplierId, "مورد السداد",
+                20, "سداد فاتورة", boxId);
+        assertEquals(80.0, partyBalance("suppliers", supplierId), 0.0001);
+        assertEquals(110.0, cashBoxBalance(boxId), 0.0001);
+        assertPaymentMovement(supplierPaymentId, boxId, "سحب");
+        assertEquals(2, helper.count("payments"));
+        assertEquals(2, helper.count("cash_movements"));
+    }
+
+    @Test public void supplierPaymentWithInsufficientCashDoesNotChangeAnyBalance() {
+        long supplierId = saveParty("suppliers", "مورد بلا سيولة");
+        ContentValues balance = new ContentValues();
+        balance.put("balance", 50);
+        helper.getWritableDatabase().update("suppliers", balance, "_id=?",
+                new String[]{String.valueOf(supplierId)});
+        ContentValues box = new ContentValues();
+        box.put("name", "صندوق محدود");
+        box.put("currency", "محلي");
+        box.put("balance", 10);
+        long boxId = helper.saveEntity("cash_boxes", 0, box);
+        boolean rejected = false;
+        try {
+            helper.savePayment("suppliers", supplierId, "مورد بلا سيولة",
+                    20, "اختبار رفض", boxId);
+        } catch (IllegalArgumentException expected) {
+            rejected = expected.getMessage().contains("الصندوق");
+        }
+        assertTrue("Expected payment to be rejected when cash is insufficient", rejected);
+        assertEquals(50.0, partyBalance("suppliers", supplierId), 0.0001);
+        assertEquals(10.0, cashBoxBalance(boxId), 0.0001);
+        assertEquals(0, helper.count("payments"));
+        assertEquals(0, helper.count("cash_movements"));
+    }
+
+    private double cashBoxBalance(long boxId) {
+        try (Cursor c = helper.getReadableDatabase().rawQuery(
+                "SELECT balance FROM cash_boxes WHERE _id=?",
+                new String[]{String.valueOf(boxId)})) {
+            assertTrue(c.moveToFirst());
+            return c.getDouble(0);
+        }
+    }
+
+    private void assertPaymentMovement(long paymentId, long boxId, String type) {
+        try (Cursor c = helper.getReadableDatabase().rawQuery(
+                "SELECT cash_box_id, type, payment_id FROM cash_movements WHERE payment_id=?",
+                new String[]{String.valueOf(paymentId)})) {
+            assertTrue(c.moveToFirst());
+            assertEquals(boxId, c.getLong(0));
+            assertEquals(type, c.getString(1));
+            assertEquals(paymentId, c.getLong(2));
+        }
+        try (Cursor c = helper.getReadableDatabase().rawQuery(
+                "SELECT cash_box_id FROM payments WHERE _id=?",
+                new String[]{String.valueOf(paymentId)})) {
+            assertTrue(c.moveToFirst());
+            assertEquals(boxId, c.getLong(0));
+        }
+    }
+
     private void assertDeleteBlocked(String table, long id) {
         boolean blocked = false;
         try {

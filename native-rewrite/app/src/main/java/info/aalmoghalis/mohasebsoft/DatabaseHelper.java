@@ -9,7 +9,7 @@ import java.util.List;
 
 public final class DatabaseHelper extends SQLiteOpenHelper {
     private static final String DB_NAME = "mohaseb_soft.db";
-    private static final int DB_VERSION = 6;
+    private static final int DB_VERSION = 7;
 
     public DatabaseHelper(Context context) {
         super(context, DB_NAME, null, DB_VERSION);
@@ -33,8 +33,8 @@ public final class DatabaseHelper extends SQLiteOpenHelper {
         db.execSQL("CREATE TABLE IF NOT EXISTS currencies (_id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL UNIQUE, code TEXT, exchange_rate REAL NOT NULL DEFAULT 1)");
         db.execSQL("CREATE TABLE IF NOT EXISTS taxes (_id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL UNIQUE, rate REAL NOT NULL DEFAULT 0)");
         db.execSQL("CREATE TABLE IF NOT EXISTS branches (_id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL UNIQUE, location TEXT)");
-        db.execSQL("CREATE TABLE IF NOT EXISTS payments (_id INTEGER PRIMARY KEY AUTOINCREMENT, entity_table TEXT NOT NULL, entity_id INTEGER NOT NULL, entity_name TEXT NOT NULL, amount REAL NOT NULL, notes TEXT, created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP)");
-        db.execSQL("CREATE TABLE IF NOT EXISTS cash_movements (_id INTEGER PRIMARY KEY AUTOINCREMENT, cash_box_id INTEGER NOT NULL, box_name TEXT NOT NULL, type TEXT NOT NULL, amount REAL NOT NULL, notes TEXT, created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP)");
+        db.execSQL("CREATE TABLE IF NOT EXISTS payments (_id INTEGER PRIMARY KEY AUTOINCREMENT, entity_table TEXT NOT NULL, entity_id INTEGER NOT NULL, entity_name TEXT NOT NULL, amount REAL NOT NULL, cash_box_id INTEGER NOT NULL DEFAULT 0, cash_box_name TEXT NOT NULL DEFAULT '', notes TEXT, created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP)");
+        db.execSQL("CREATE TABLE IF NOT EXISTS cash_movements (_id INTEGER PRIMARY KEY AUTOINCREMENT, cash_box_id INTEGER NOT NULL, box_name TEXT NOT NULL, type TEXT NOT NULL, amount REAL NOT NULL, payment_id INTEGER NOT NULL DEFAULT 0, notes TEXT, created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP)");
     }
 
     @Override public void onUpgrade(SQLiteDatabase db, int oldVersion, int newVersion) {
@@ -49,6 +49,9 @@ public final class DatabaseHelper extends SQLiteOpenHelper {
         ensureColumn(db, "invoices", "tax_amount", "REAL NOT NULL DEFAULT 0");
         ensureColumn(db, "invoices", "currency_name", "TEXT NOT NULL DEFAULT 'محلي'");
         ensureColumn(db, "invoices", "exchange_rate", "REAL NOT NULL DEFAULT 1");
+        ensureColumn(db, "payments", "cash_box_id", "INTEGER NOT NULL DEFAULT 0");
+        ensureColumn(db, "payments", "cash_box_name", "TEXT NOT NULL DEFAULT ''");
+        ensureColumn(db, "cash_movements", "payment_id", "INTEGER NOT NULL DEFAULT 0");
         backfillInvoicePartyLinks(db);
     }
 
@@ -426,28 +429,67 @@ public final class DatabaseHelper extends SQLiteOpenHelper {
         } finally { db.endTransaction(); }
     }
 
+    /** Legacy callers must select a cash box so balances remain synchronized. */
+    @Deprecated
     public long savePayment(String entityTable, long entityId, String entityName, double amount, String notes) {
-        if (!("customers".equals(entityTable) || "suppliers".equals(entityTable)) || amount <= 0) {
-            throw new IllegalArgumentException("حدد الحساب وأدخل مبلغًا موجبًا");
+        throw new IllegalArgumentException("اختر الصندوق النقدي لتسجيل السداد وتحديث رصيده");
+    }
+
+    /** Records a customer receipt or supplier payment and its cash movement atomically. */
+    public long savePayment(String entityTable, long entityId, String entityName,
+                            double amount, String notes, long cashBoxId) {
+        if (!("customers".equals(entityTable) || "suppliers".equals(entityTable))
+                || entityId <= 0 || cashBoxId <= 0 || !Double.isFinite(amount) || amount <= 0) {
+            throw new IllegalArgumentException("حدد الحساب والصندوق وأدخل مبلغًا موجبًا");
         }
         SQLiteDatabase db = getWritableDatabase();
         db.beginTransaction();
         try {
-            try (Cursor c = db.rawQuery("SELECT balance FROM " + entityTable + " WHERE _id=?", new String[]{String.valueOf(entityId)})) {
-                if (!c.moveToFirst()) throw new IllegalArgumentException("الحساب غير موجود");
-                if (c.getDouble(0) < amount) throw new IllegalArgumentException("المبلغ أكبر من الرصيد الحالي");
+            try (Cursor party = db.rawQuery("SELECT balance FROM " + entityTable + " WHERE _id=?",
+                    new String[]{String.valueOf(entityId)})) {
+                if (!party.moveToFirst()) throw new IllegalArgumentException("الحساب غير موجود");
+                if (party.getDouble(0) + 0.0000001 < amount)
+                    throw new IllegalArgumentException("المبلغ أكبر من الرصيد الحالي");
             }
-            db.execSQL("UPDATE " + entityTable + " SET balance = balance - ? WHERE _id=?", new Object[]{amount, entityId});
-            ContentValues values = new ContentValues();
-            values.put("entity_table", entityTable);
-            values.put("entity_id", entityId);
-            values.put("entity_name", entityName);
-            values.put("amount", amount);
-            values.put("notes", notes == null ? "" : notes.trim());
-            long id = db.insertOrThrow("payments", null, values);
+            String boxName;
+            double boxBalance;
+            try (Cursor box = db.rawQuery("SELECT name, balance FROM cash_boxes WHERE _id=?",
+                    new String[]{String.valueOf(cashBoxId)})) {
+                if (!box.moveToFirst()) throw new IllegalArgumentException("الصندوق غير موجود");
+                boxName = box.getString(0);
+                boxBalance = box.getDouble(1);
+            }
+            boolean customerReceipt = "customers".equals(entityTable);
+            if (!customerReceipt && boxBalance + 0.0000001 < amount)
+                throw new IllegalArgumentException("رصيد الصندوق غير كافٍ لسداد المورد");
+            db.execSQL("UPDATE " + entityTable + " SET balance = balance - ? WHERE _id=?",
+                    new Object[]{amount, entityId});
+            db.execSQL("UPDATE cash_boxes SET balance = balance " +
+                    (customerReceipt ? "+" : "-") + " ? WHERE _id=?",
+                    new Object[]{amount, cashBoxId});
+            ContentValues payment = new ContentValues();
+            payment.put("entity_table", entityTable);
+            payment.put("entity_id", entityId);
+            payment.put("entity_name", entityName == null ? "" : entityName);
+            payment.put("amount", amount);
+            payment.put("cash_box_id", cashBoxId);
+            payment.put("cash_box_name", boxName);
+            payment.put("notes", notes == null ? "" : notes.trim());
+            long paymentId = db.insertOrThrow("payments", null, payment);
+            ContentValues movement = new ContentValues();
+            movement.put("cash_box_id", cashBoxId);
+            movement.put("box_name", boxName);
+            movement.put("type", customerReceipt ? "إيداع" : "سحب");
+            movement.put("amount", amount);
+            movement.put("payment_id", paymentId);
+            movement.put("notes", (customerReceipt ? "تحصيل من العميل" : "سداد للمورد") +
+                    (notes == null || notes.trim().isEmpty() ? "" : ": " + notes.trim()));
+            db.insertOrThrow("cash_movements", null, movement);
             db.setTransactionSuccessful();
-            return id;
-        } finally { db.endTransaction(); }
+            return paymentId;
+        } finally {
+            db.endTransaction();
+        }
     }
 
     public long saveExpense(String type, String title, String category, double amount, String notes) {
