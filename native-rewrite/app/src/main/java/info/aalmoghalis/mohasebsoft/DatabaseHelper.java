@@ -9,7 +9,7 @@ import java.util.List;
 
 public final class DatabaseHelper extends SQLiteOpenHelper {
     private static final String DB_NAME = "mohaseb_soft.db";
-    private static final int DB_VERSION = 9;
+    private static final int DB_VERSION = 10;
 
     public DatabaseHelper(Context context) {
         super(context, DB_NAME, null, DB_VERSION);
@@ -23,7 +23,7 @@ public final class DatabaseHelper extends SQLiteOpenHelper {
         db.execSQL("CREATE TABLE IF NOT EXISTS invoice_lines (_id INTEGER PRIMARY KEY AUTOINCREMENT, invoice_id INTEGER NOT NULL, item_id INTEGER NOT NULL, item_name TEXT NOT NULL, quantity REAL NOT NULL, price REAL NOT NULL, line_total REAL NOT NULL, FOREIGN KEY(invoice_id) REFERENCES invoices(_id) ON DELETE CASCADE)");
         db.execSQL("CREATE TABLE IF NOT EXISTS transactions (_id INTEGER PRIMARY KEY AUTOINCREMENT, account_name TEXT NOT NULL, description TEXT, debit REAL NOT NULL DEFAULT 0, credit REAL NOT NULL DEFAULT 0, created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP)");
         db.execSQL("CREATE TABLE IF NOT EXISTS groups_catalog (_id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL UNIQUE, kind TEXT NOT NULL DEFAULT 'عام')");
-        db.execSQL("CREATE TABLE IF NOT EXISTS accounts (_id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL UNIQUE, type TEXT NOT NULL DEFAULT 'عام', opening_balance REAL NOT NULL DEFAULT 0)");
+        db.execSQL("CREATE TABLE IF NOT EXISTS accounts (_id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL UNIQUE, type TEXT NOT NULL DEFAULT 'عام', opening_balance REAL NOT NULL DEFAULT 0, code TEXT NOT NULL DEFAULT '', parent_account_id INTEGER NOT NULL DEFAULT 0, is_group INTEGER NOT NULL DEFAULT 0, is_active INTEGER NOT NULL DEFAULT 1)");
         db.execSQL("CREATE TABLE IF NOT EXISTS cash_boxes (_id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL UNIQUE, currency TEXT NOT NULL DEFAULT 'محلي', balance REAL NOT NULL DEFAULT 0)");
         db.execSQL("CREATE TABLE IF NOT EXISTS expenses (_id INTEGER PRIMARY KEY AUTOINCREMENT, type TEXT NOT NULL, title TEXT NOT NULL, category TEXT, amount REAL NOT NULL, cash_box_id INTEGER NOT NULL DEFAULT 0, cash_box_name TEXT NOT NULL DEFAULT '', notes TEXT, created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP)");
         db.execSQL("CREATE TABLE IF NOT EXISTS warehouses (_id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL UNIQUE, location TEXT)");
@@ -58,6 +58,10 @@ public final class DatabaseHelper extends SQLiteOpenHelper {
         ensureColumn(db, "cash_movements", "expense_id", "INTEGER NOT NULL DEFAULT 0");
         ensureColumn(db, "expenses", "cash_box_id", "INTEGER NOT NULL DEFAULT 0");
         ensureColumn(db, "expenses", "cash_box_name", "TEXT NOT NULL DEFAULT ''");
+        ensureColumn(db, "accounts", "code", "TEXT NOT NULL DEFAULT ''");
+        ensureColumn(db, "accounts", "parent_account_id", "INTEGER NOT NULL DEFAULT 0");
+        ensureColumn(db, "accounts", "is_group", "INTEGER NOT NULL DEFAULT 0");
+        ensureColumn(db, "accounts", "is_active", "INTEGER NOT NULL DEFAULT 1");
         db.execSQL("CREATE TABLE IF NOT EXISTS journal_entries (_id INTEGER PRIMARY KEY AUTOINCREMENT, description TEXT NOT NULL, source_type TEXT NOT NULL DEFAULT 'manual', source_id INTEGER NOT NULL DEFAULT 0, created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP)");
         db.execSQL("CREATE TABLE IF NOT EXISTS journal_lines (_id INTEGER PRIMARY KEY AUTOINCREMENT, entry_id INTEGER NOT NULL, account_id INTEGER NOT NULL, account_name TEXT NOT NULL, debit REAL NOT NULL DEFAULT 0, credit REAL NOT NULL DEFAULT 0, line_no INTEGER NOT NULL, FOREIGN KEY(entry_id) REFERENCES journal_entries(_id), FOREIGN KEY(account_id) REFERENCES accounts(_id))");
         db.execSQL("CREATE UNIQUE INDEX IF NOT EXISTS idx_journal_source ON journal_entries(source_type, source_id) WHERE source_id > 0");
@@ -149,6 +153,22 @@ public final class DatabaseHelper extends SQLiteOpenHelper {
             throw new IllegalArgumentException("Unsupported table");
         }
         SQLiteDatabase db = getWritableDatabase();
+        if ("accounts".equals(table)) {
+            long parentId = values.getAsLong("parent_account_id") == null ? 0 : values.getAsLong("parent_account_id");
+            int group = values.getAsInteger("is_group") == null ? 0 : values.getAsInteger("is_group");
+            if (parentId == id && id > 0) throw new IllegalArgumentException("لا يمكن جعل الحساب أبًا لنفسه");
+            if (parentId > 0) {
+                try (Cursor p = db.rawQuery("SELECT is_group FROM accounts WHERE _id=?", new String[]{String.valueOf(parentId)})) {
+                    if (!p.moveToFirst()) throw new IllegalArgumentException("الحساب الأب غير موجود");
+                    if (p.getInt(0) != 1) throw new IllegalArgumentException("الحساب الأب يجب أن يكون حسابًا رئيسيًا");
+                }
+                if (id > 0) try (Cursor c = db.rawQuery("WITH RECURSIVE d(id) AS (SELECT _id FROM accounts WHERE parent_account_id=? UNION ALL SELECT a._id FROM accounts a JOIN d ON a.parent_account_id=d.id) SELECT 1 FROM d WHERE id=? LIMIT 1", new String[]{String.valueOf(id),String.valueOf(parentId)})) {
+                    if (c.moveToFirst()) throw new IllegalArgumentException("ارتباط دائري في شجرة الحسابات");
+                }
+            }
+            if (group == 0 && id > 0 && scalarCount(db,"SELECT COUNT(*) FROM accounts WHERE parent_account_id=?",new String[]{String.valueOf(id)})>0)
+                throw new IllegalArgumentException("الحساب الرئيسي لديه فروع");
+        }
         if (id > 0) return db.update(table, values, "_id=?", new String[]{String.valueOf(id)});
         long newId = db.insertOrThrow(table, null, values);
         if ("customers".equals(table) || "suppliers".equals(table)) {
@@ -197,6 +217,8 @@ public final class DatabaseHelper extends SQLiteOpenHelper {
                     new String[]{name});
                 references += scalarCount(db, "SELECT COUNT(*) FROM journal_lines WHERE account_id=?",
                     new String[]{String.valueOf(id)});
+            } else if ("accounts".equals(table)) {
+                references += scalarCount(db,"SELECT COUNT(*) FROM accounts WHERE parent_account_id=?",new String[]{String.valueOf(id)});
             } else if ("currencies".equals(table) && name != null) {
                 references += scalarCount(db, "SELECT COUNT(*) FROM invoices WHERE currency_name=? COLLATE NOCASE",
                     new String[]{name});
@@ -371,9 +393,11 @@ public final class DatabaseHelper extends SQLiteOpenHelper {
                 if (duplicate.moveToFirst()) throw new IllegalArgumentException("هذه العملية مرحّلة إلى دفتر القيود مسبقًا");
             }
             String[] names = new String[accountIds.size()];
-            for (int i = 0; i < accountIds.size(); i++) try (Cursor account = db.rawQuery("SELECT name FROM accounts WHERE _id=?",
+            for (int i = 0; i < accountIds.size(); i++) try (Cursor account = db.rawQuery("SELECT name, is_group, is_active FROM accounts WHERE _id=?",
                     new String[]{String.valueOf(accountIds.get(i))})) {
                 if (!account.moveToFirst()) throw new IllegalArgumentException("أحد الحسابات غير موجود");
+                if (account.getInt(1)==1) throw new IllegalArgumentException("لا يمكن الترحيل إلى حساب رئيسي تجميعي");
+                if (account.getInt(2)==0) throw new IllegalArgumentException("الحساب موقوف ولا يقبل الترحيل");
                 names[i] = account.getString(0);
             }
             ContentValues header = new ContentValues(); header.put("description", description.trim());
@@ -399,6 +423,17 @@ public final class DatabaseHelper extends SQLiteOpenHelper {
     }
     public double journalCreditTotal() {
         try (Cursor c = getReadableDatabase().rawQuery("SELECT COALESCE(SUM(credit),0) FROM journal_lines", null)) { return c.moveToFirst() ? c.getDouble(0) : 0; }
+    }
+
+    public Cursor accountTree() {
+        return getReadableDatabase().rawQuery("WITH RECURSIVE t(_id,name,code,type,parent_account_id,is_group,is_active,depth,path) AS ("+
+            "SELECT _id,name,code,type,parent_account_id,is_group,is_active,0,printf('%08d',_id) FROM accounts WHERE parent_account_id=0 "+
+            "UNION ALL SELECT a._id,a.name,a.code,a.type,a.parent_account_id,a.is_group,a.is_active,t.depth+1,t.path||'/'||printf('%08d',a._id) FROM accounts a JOIN t ON a.parent_account_id=t._id) "+
+            "SELECT _id,name,code,type,parent_account_id,is_group,is_active,depth FROM t ORDER BY path",null);
+    }
+
+    public double accountJournalBalance(long id) {
+        try (Cursor c=getReadableDatabase().rawQuery("SELECT COALESCE(SUM(debit)-SUM(credit),0) FROM journal_lines WHERE account_id=?",new String[]{String.valueOf(id)})) { return c.moveToFirst()?c.getDouble(0):0; }
     }
 
     public long saveTransaction(String account, String description, double debit, double credit) {

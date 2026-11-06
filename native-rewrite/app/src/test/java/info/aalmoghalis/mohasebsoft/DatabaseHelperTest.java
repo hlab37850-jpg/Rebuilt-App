@@ -352,6 +352,21 @@ public class DatabaseHelperTest {
         return helper.saveEntity("accounts", 0, values);
     }
 
+    @Test public void accountHierarchySupportsParentChildAndProtectsParentDelete() {
+        long p=saveAccountHierarchy("الأصول","100",0,1,1), child=saveAccountHierarchy("النقدية","101",p,0,1);
+        try(Cursor c=helper.accountTree()){assertTrue(c.moveToFirst());assertEquals(p,c.getLong(0));assertTrue(c.moveToNext());assertEquals(child,c.getLong(0));assertEquals(1,c.getInt(7));}
+        assertDeleteBlocked("accounts",p);
+    }
+    @Test public void journalRejectsGroupAndInactiveAccounts() {
+        long group=saveAccountHierarchy("مجموعة الأصول","200",0,1,1), inactive=saveAccountHierarchy("حساب موقوف","201",0,0,0), active=saveAccount("حساب نشط","أصل");
+        boolean a=false;try{helper.saveJournalEntry("مجموعة","hierarchy-test",901,Arrays.asList(group,active),Arrays.asList(10.0,0.0),Arrays.asList(0.0,10.0));}catch(IllegalArgumentException e){a=e.getMessage().contains("تجميعي");}assertTrue(a);
+        boolean b=false;try{helper.saveJournalEntry("موقوف","hierarchy-test",902,Arrays.asList(inactive,active),Arrays.asList(10.0,0.0),Arrays.asList(0.0,10.0));}catch(IllegalArgumentException e){b=e.getMessage().contains("موقوف");}assertTrue(b);
+        assertEquals(0,helper.count("journal_entries"));
+    }
+    private long saveAccountHierarchy(String name,String code,long parent,int group,int active){
+        ContentValues v=new ContentValues();v.put("name",name);v.put("type","أصل");v.put("opening_balance",0);v.put("code",code);v.put("parent_account_id",parent);v.put("is_group",group);v.put("is_active",active);return helper.saveEntity("accounts",0,v);
+    }
+
     private long saveParty(String table, String name) {
         ContentValues values = new ContentValues();
         values.put("name", name);

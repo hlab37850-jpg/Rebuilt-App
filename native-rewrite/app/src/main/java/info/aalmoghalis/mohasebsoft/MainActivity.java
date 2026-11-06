@@ -370,12 +370,26 @@ public final class MainActivity extends Activity {
             fields[i] = input(labels[i]);
             form.addView(fields[i], matchWrap());
         }
+        EditText codeInput=null, parentInput=null; Spinner groupInput=null, activeInput=null;
+        if ("accounts".equals(table)) {
+            codeInput=input("رمز الحساب"); parentInput=input("رقم الحساب الأب (0 للحساب الرئيسي)");
+            groupInput=new Spinner(this); groupInput.setAdapter(new ArrayAdapter<>(this,android.R.layout.simple_spinner_dropdown_item,new String[]{"حساب فرعي","حساب رئيسي تجميعي"}));
+            activeInput=new Spinner(this); activeInput.setAdapter(new ArrayAdapter<>(this,android.R.layout.simple_spinner_dropdown_item,new String[]{"نشط","موقوف"}));
+            form.addView(codeInput,matchWrap()); form.addView(parentInput,matchWrap()); form.addView(text("نوع الحساب",13,DARK,true)); form.addView(groupInput,matchWrap()); form.addView(text("الحالة",13,DARK,true)); form.addView(activeInput,matchWrap());
+        }
+        final EditText codeF=codeInput,parentF=parentInput; final Spinner groupF=groupInput,activeF=activeInput;
         if (editing) {
             try (Cursor c = database.getReadableDatabase().rawQuery("SELECT * FROM " + table + " WHERE _id=?", new String[]{String.valueOf(editId)})) {
                 if (c.moveToFirst()) {
                     for (int i = 0; i < columns.length; i++) {
                         int ix = c.getColumnIndex(columns[i]);
                         if (ix >= 0 && !c.isNull(ix)) fields[i].setText(c.getString(ix));
+                    }
+                    if ("accounts".equals(table)) {
+                        codeF.setText(c.getString(c.getColumnIndexOrThrow("code")));
+                        parentF.setText(String.valueOf(c.getLong(c.getColumnIndexOrThrow("parent_account_id"))));
+                        groupF.setSelection(c.getInt(c.getColumnIndexOrThrow("is_group"))==1?1:0);
+                        activeF.setSelection(c.getInt(c.getColumnIndexOrThrow("is_active"))==1?0:1);
                     }
                 }
             }
@@ -400,6 +414,14 @@ public final class MainActivity extends Activity {
                             values.put(columns[i], n);
                         } catch (NumberFormatException ex) { toast("أدخل رقمًا صحيحًا في الحقول المالية والكمية"); return; }
                     }
+                }
+                if ("accounts".equals(table)) {
+                    try {
+                        long parentId=parentF.getText().toString().trim().isEmpty()?0:Long.parseLong(parentF.getText().toString().trim());
+                        if(parentId<0){toast("رقم الحساب الأب غير صحيح");return;}
+                        values.put("code",codeF.getText().toString().trim()); values.put("parent_account_id",parentId);
+                        values.put("is_group",groupF.getSelectedItemPosition()==1?1:0); values.put("is_active",activeF.getSelectedItemPosition()==0?1:0);
+                    } catch(NumberFormatException ex){toast("أدخل رقمًا صحيحًا للحساب الأب");return;}
                 }
                 try {
                     database.saveEntity(table, editing ? editId : 0, values);
@@ -1047,6 +1069,17 @@ public final class MainActivity extends Activity {
     }
 
     private void showAccountBalances() {
+        page.removeAllViews(); addHeading("شجرة الحسابات","الحسابات الرئيسية والفرعية وأرصدة دفتر القيود");
+        try(Cursor c=database.accountTree()) { while(c.moveToNext()) {
+            int depth=c.getInt(7); LinearLayout row=card();
+            row.addView(text((depth==0?"▣ ":"    ".repeat(Math.min(depth,6))+"↳ ")+c.getString(1)+(c.getString(2).isEmpty()?"":" • "+c.getString(2)),15,DARK,true));
+            row.addView(text(c.getString(3)+" • "+(c.getInt(5)==1?"رئيسي تجميعي":"فرعي")+" • "+(c.getInt(6)==1?"نشط":"موقوف")+" • رصيد القيود: "+money(database.accountJournalBalance(c.getLong(0))),12,Color.GRAY,false));
+            page.addView(row);
+        }}
+        addReportLink("إضافة حساب",()->showEntityForm("accounts",null));
+    }
+
+    private void showAccountBalancesLegacy() {
         page.removeAllViews();
         addHeading("أرصدة الحسابات", "الأرصدة الحالية للعملاء والموردين");
         for (String table : new String[]{"customers", "suppliers"}) {
