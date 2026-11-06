@@ -302,9 +302,17 @@ public final class MainActivity extends Activity {
                             .setMessage("هل تريد حذف «" + name + "»؟")
                             .setNegativeButton("إلغاء", null)
                             .setPositiveButton("حذف", (d, w) -> {
-                                database.delete(table, id);
-                                render[0].run();
-                                toast("تم الحذف");
+                                try {
+                                    int deleted = database.delete(table, id);
+                                    if (deleted > 0) {
+                                        render[0].run();
+                                        toast("تم الحذف");
+                                    } else {
+                                        toast("السجل غير موجود أو سبق حذفه");
+                                    }
+                                } catch (Exception ex) {
+                                    toast("تعذر الحذف: " + ex.getMessage());
+                                }
                             }).show();
                         return true;
                     });
