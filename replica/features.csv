@@ -2,11 +2,11 @@ feature,area,priority,original,clone,notes
 Home dashboard,Navigation,must,yes,yes,Metrics and shortcuts exist
 Side navigation drawer,Navigation,must,yes,yes,Compare with fresh screenshots
 Arabic RTL,UX,must,yes,partial,Verify every dialog and input
-Customer CRUD,Parties,must,yes,yes,Linked-record safety needs tests
-Supplier CRUD,Parties,must,yes,yes,Linked-record safety needs tests
+Customer CRUD,Parties,must,yes,yes,Deletion now blocked when invoices or payments reference the customer; tested
+Supplier CRUD,Parties,must,yes,yes,Deletion now blocked when invoices or payments reference the supplier; tested
 Party statements,Parties,must,yes,partial,Period balances need reconciliation
 Receipts and payments,Accounting,must,yes,partial,Single settlement flow; cash/journal links incomplete
-Item CRUD,Inventory,must,yes,yes,Barcode/category/expiry gaps
+Item CRUD,Inventory,must,yes,yes,Deletion now blocked when invoice lines or stock movements reference the item; barcode/category/expiry gaps
 Barcode scan and label print,Inventory,should,yes,no,Not in rewrite
 Sales invoices,Sales,must,yes,partial,Create/list; editing and lifecycle incomplete
 Purchase invoices,Purchases,must,yes,partial,Create/list; editing and lifecycle incomplete
@@ -24,7 +24,7 @@ Currencies and exchange rates,Accounting,should,yes,partial,No effective-dated r
 Taxes and tax identity,Compliance,should,yes,partial,Compliance workflow incomplete
 Chart of accounts,Accounting,must,yes,partial,Simple CRUD; hierarchy incomplete
 Balanced double-entry journal,Accounting,must,yes,partial,No balanced journal posting gate visible
-Cash boxes and banks,Accounting,must,yes,partial,CRUD exists; reconcile with vouchers
+Cash boxes and banks,Accounting,must,yes,partial,Deletion blocked when cash movements exist; reconcile with vouchers remains
 Cash deposits/withdrawals,Accounting,must,yes,partial,Need journal and audit linkage
 Expenses and income,Accounting,must,yes,partial,No cash/account integration or period filters
 Trial balance,Reports,must,yes,partial,Needs complete account-level ledger
