@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - rewrite/from-scratch
+      - clone/full-app-replica
     paths:
       - 'native-rewrite/**'
       - '.github/workflows/native-rewrite.yml'
