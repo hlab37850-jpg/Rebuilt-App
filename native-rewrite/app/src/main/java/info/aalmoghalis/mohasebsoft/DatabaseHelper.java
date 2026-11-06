@@ -9,7 +9,7 @@ import java.util.List;
 
 public final class DatabaseHelper extends SQLiteOpenHelper {
     private static final String DB_NAME = "mohaseb_soft.db";
-    private static final int DB_VERSION = 7;
+    private static final int DB_VERSION = 8;
 
     public DatabaseHelper(Context context) {
         super(context, DB_NAME, null, DB_VERSION);
@@ -25,7 +25,7 @@ public final class DatabaseHelper extends SQLiteOpenHelper {
         db.execSQL("CREATE TABLE IF NOT EXISTS groups_catalog (_id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL UNIQUE, kind TEXT NOT NULL DEFAULT 'عام')");
         db.execSQL("CREATE TABLE IF NOT EXISTS accounts (_id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL UNIQUE, type TEXT NOT NULL DEFAULT 'عام', opening_balance REAL NOT NULL DEFAULT 0)");
         db.execSQL("CREATE TABLE IF NOT EXISTS cash_boxes (_id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL UNIQUE, currency TEXT NOT NULL DEFAULT 'محلي', balance REAL NOT NULL DEFAULT 0)");
-        db.execSQL("CREATE TABLE IF NOT EXISTS expenses (_id INTEGER PRIMARY KEY AUTOINCREMENT, type TEXT NOT NULL, title TEXT NOT NULL, category TEXT, amount REAL NOT NULL, notes TEXT, created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP)");
+        db.execSQL("CREATE TABLE IF NOT EXISTS expenses (_id INTEGER PRIMARY KEY AUTOINCREMENT, type TEXT NOT NULL, title TEXT NOT NULL, category TEXT, amount REAL NOT NULL, cash_box_id INTEGER NOT NULL DEFAULT 0, cash_box_name TEXT NOT NULL DEFAULT '', notes TEXT, created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP)");
         db.execSQL("CREATE TABLE IF NOT EXISTS warehouses (_id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL UNIQUE, location TEXT)");
         db.execSQL("CREATE TABLE IF NOT EXISTS item_movements (_id INTEGER PRIMARY KEY AUTOINCREMENT, item_id INTEGER NOT NULL, item_name TEXT NOT NULL, type TEXT NOT NULL, quantity REAL NOT NULL, notes TEXT, created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP)");
         db.execSQL("CREATE TABLE IF NOT EXISTS item_types (_id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL UNIQUE)");
@@ -34,7 +34,7 @@ public final class DatabaseHelper extends SQLiteOpenHelper {
         db.execSQL("CREATE TABLE IF NOT EXISTS taxes (_id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL UNIQUE, rate REAL NOT NULL DEFAULT 0)");
         db.execSQL("CREATE TABLE IF NOT EXISTS branches (_id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL UNIQUE, location TEXT)");
         db.execSQL("CREATE TABLE IF NOT EXISTS payments (_id INTEGER PRIMARY KEY AUTOINCREMENT, entity_table TEXT NOT NULL, entity_id INTEGER NOT NULL, entity_name TEXT NOT NULL, amount REAL NOT NULL, cash_box_id INTEGER NOT NULL DEFAULT 0, cash_box_name TEXT NOT NULL DEFAULT '', notes TEXT, created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP)");
-        db.execSQL("CREATE TABLE IF NOT EXISTS cash_movements (_id INTEGER PRIMARY KEY AUTOINCREMENT, cash_box_id INTEGER NOT NULL, box_name TEXT NOT NULL, type TEXT NOT NULL, amount REAL NOT NULL, payment_id INTEGER NOT NULL DEFAULT 0, notes TEXT, created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP)");
+        db.execSQL("CREATE TABLE IF NOT EXISTS cash_movements (_id INTEGER PRIMARY KEY AUTOINCREMENT, cash_box_id INTEGER NOT NULL, box_name TEXT NOT NULL, type TEXT NOT NULL, amount REAL NOT NULL, payment_id INTEGER NOT NULL DEFAULT 0, expense_id INTEGER NOT NULL DEFAULT 0, notes TEXT, created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP)");
     }
 
     @Override public void onUpgrade(SQLiteDatabase db, int oldVersion, int newVersion) {
@@ -52,6 +52,9 @@ public final class DatabaseHelper extends SQLiteOpenHelper {
         ensureColumn(db, "payments", "cash_box_id", "INTEGER NOT NULL DEFAULT 0");
         ensureColumn(db, "payments", "cash_box_name", "TEXT NOT NULL DEFAULT ''");
         ensureColumn(db, "cash_movements", "payment_id", "INTEGER NOT NULL DEFAULT 0");
+        ensureColumn(db, "cash_movements", "expense_id", "INTEGER NOT NULL DEFAULT 0");
+        ensureColumn(db, "expenses", "cash_box_id", "INTEGER NOT NULL DEFAULT 0");
+        ensureColumn(db, "expenses", "cash_box_name", "TEXT NOT NULL DEFAULT ''");
         backfillInvoicePartyLinks(db);
     }
 
@@ -492,15 +495,61 @@ public final class DatabaseHelper extends SQLiteOpenHelper {
         }
     }
 
+    /** Legacy callers must specify the cash box for every income or expense. */
+    @Deprecated
     public long saveExpense(String type, String title, String category, double amount, String notes) {
-        if (title.trim().isEmpty() || amount <= 0) throw new IllegalArgumentException("أدخل البيان والمبلغ الصحيح");
-        ContentValues values = new ContentValues();
-        values.put("type", type);
-        values.put("title", title.trim());
-        values.put("category", category == null ? "" : category.trim());
-        values.put("amount", amount);
-        values.put("notes", notes == null ? "" : notes.trim());
-        return getWritableDatabase().insertOrThrow("expenses", null, values);
+        throw new IllegalArgumentException("اختر الصندوق النقدي لتسجيل الإيراد أو المصروف");
+    }
+
+    /** Saves the income/expense and its cash movement as one atomic operation. */
+    public long saveExpense(String type, String title, String category, double amount,
+                            String notes, long cashBoxId) {
+        if (!("مصروف".equals(type) || "إيراد".equals(type))
+                || title == null || title.trim().isEmpty()
+                || !Double.isFinite(amount) || amount <= 0 || cashBoxId <= 0) {
+            throw new IllegalArgumentException("أدخل البيان والمبلغ واختر الصندوق");
+        }
+        SQLiteDatabase db = getWritableDatabase();
+        db.beginTransaction();
+        try {
+            String boxName;
+            double balance;
+            try (Cursor box = db.rawQuery("SELECT name, balance FROM cash_boxes WHERE _id=?",
+                    new String[]{String.valueOf(cashBoxId)})) {
+                if (!box.moveToFirst()) throw new IllegalArgumentException("الصندوق غير موجود");
+                boxName = box.getString(0);
+                balance = box.getDouble(1);
+            }
+            boolean income = "إيراد".equals(type);
+            if (!income && balance + 0.0000001 < amount)
+                throw new IllegalArgumentException("رصيد الصندوق غير كافٍ لتسجيل المصروف");
+
+            ContentValues values = new ContentValues();
+            values.put("type", type);
+            values.put("title", title.trim());
+            values.put("category", category == null ? "" : category.trim());
+            values.put("amount", amount);
+            values.put("cash_box_id", cashBoxId);
+            values.put("cash_box_name", boxName);
+            values.put("notes", notes == null ? "" : notes.trim());
+            long expenseId = db.insertOrThrow("expenses", null, values);
+
+            db.execSQL("UPDATE cash_boxes SET balance = balance " +
+                    (income ? "+" : "-") + " ? WHERE _id=?",
+                    new Object[]{amount, cashBoxId});
+            ContentValues movement = new ContentValues();
+            movement.put("cash_box_id", cashBoxId);
+            movement.put("box_name", boxName);
+            movement.put("type", income ? "إيداع" : "سحب");
+            movement.put("amount", amount);
+            movement.put("expense_id", expenseId);
+            movement.put("notes", (income ? "إيراد: " : "مصروف: ") + title.trim());
+            db.insertOrThrow("cash_movements", null, movement);
+            db.setTransactionSuccessful();
+            return expenseId;
+        } finally {
+            db.endTransaction();
+        }
     }
 
     public double sumExpenses(String type) {

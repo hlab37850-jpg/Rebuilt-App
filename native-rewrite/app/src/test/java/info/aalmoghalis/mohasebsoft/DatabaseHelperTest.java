@@ -214,6 +214,62 @@ public class DatabaseHelperTest {
         }
     }
 
+    @Test public void incomeAndExpenseUpdateCashBoxAndCreateLinkedMovements() {
+        ContentValues box = new ContentValues();
+        box.put("name", "صندوق الإيرادات والمصروفات");
+        box.put("currency", "محلي");
+        box.put("balance", 100);
+        long boxId = helper.saveEntity("cash_boxes", 0, box);
+
+        long incomeId = helper.saveExpense("إيراد", "دخل خدمة", "خدمات", 40,
+                "إيراد تجريبي", boxId);
+        assertEquals(140.0, cashBoxBalance(boxId), 0.0001);
+        assertExpenseMovement(incomeId, boxId, "إيداع");
+
+        long expenseId = helper.saveExpense("مصروف", "فاتورة كهرباء", "تشغيل", 25,
+                "مصروف تجريبي", boxId);
+        assertEquals(115.0, cashBoxBalance(boxId), 0.0001);
+        assertExpenseMovement(expenseId, boxId, "سحب");
+        assertEquals(2, helper.count("expenses"));
+        assertEquals(2, helper.count("cash_movements"));
+    }
+
+    @Test public void expenseWithInsufficientCashIsRejectedAtomically() {
+        ContentValues box = new ContentValues();
+        box.put("name", "صندوق المصروف المحدود");
+        box.put("currency", "محلي");
+        box.put("balance", 5);
+        long boxId = helper.saveEntity("cash_boxes", 0, box);
+        boolean rejected = false;
+        try {
+            helper.saveExpense("مصروف", "مصروف أكبر من الرصيد", "اختبار",
+                    10, "", boxId);
+        } catch (IllegalArgumentException expected) {
+            rejected = expected.getMessage().contains("غير كافٍ");
+        }
+        assertTrue("Expected insufficient cash to reject expense", rejected);
+        assertEquals(5.0, cashBoxBalance(boxId), 0.0001);
+        assertEquals(0, helper.count("expenses"));
+        assertEquals(0, helper.count("cash_movements"));
+    }
+
+    private void assertExpenseMovement(long expenseId, long boxId, String type) {
+        try (Cursor c = helper.getReadableDatabase().rawQuery(
+                "SELECT cash_box_id, type, expense_id FROM cash_movements WHERE expense_id=?",
+                new String[]{String.valueOf(expenseId)})) {
+            assertTrue(c.moveToFirst());
+            assertEquals(boxId, c.getLong(0));
+            assertEquals(type, c.getString(1));
+            assertEquals(expenseId, c.getLong(2));
+        }
+        try (Cursor c = helper.getReadableDatabase().rawQuery(
+                "SELECT cash_box_id FROM expenses WHERE _id=?",
+                new String[]{String.valueOf(expenseId)})) {
+            assertTrue(c.moveToFirst());
+            assertEquals(boxId, c.getLong(0));
+        }
+    }
+
     private void assertDeleteBlocked(String table, long id) {
         boolean blocked = false;
         try {

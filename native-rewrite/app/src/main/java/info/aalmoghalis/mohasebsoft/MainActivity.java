@@ -913,17 +913,38 @@ public final class MainActivity extends Activity {
         EditText amount = input("المبلغ");
         amount.setInputType(8194);
         EditText notes = input("ملاحظات");
+        Spinner cashBox = new Spinner(this);
+        List<Long> cashBoxIds = new ArrayList<>();
+        List<String> cashBoxNames = new ArrayList<>();
+        cashBoxIds.add(0L);
+        cashBoxNames.add("اختر الصندوق النقدي");
+        try (Cursor boxes = database.list("cash_boxes")) {
+            while (boxes.moveToNext()) {
+                cashBoxIds.add(boxes.getLong(boxes.getColumnIndexOrThrow("_id")));
+                cashBoxNames.add(boxes.getString(boxes.getColumnIndexOrThrow("name")));
+            }
+        }
+        ArrayAdapter<String> adapter = new ArrayAdapter<>(this,
+                android.R.layout.simple_spinner_item, cashBoxNames);
+        adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
+        cashBox.setAdapter(adapter);
         form.addView(title, matchWrap());
         form.addView(category, matchWrap());
+        form.addView(text("الصندوق النقدي", 13, DARK, false), matchWrap());
+        form.addView(cashBox, matchWrap());
         form.addView(amount, matchWrap());
         form.addView(notes, matchWrap());
         new AlertDialog.Builder(this).setTitle("إضافة " + type).setView(form)
             .setNegativeButton("إلغاء", null)
             .setPositiveButton("حفظ", (d, w) -> {
                 try {
-                    database.saveExpense(type, title.getText().toString(), category.getText().toString(),
-                        parseNumber(amount.getText().toString()), notes.getText().toString());
-                    toast("تم حفظ " + type);
+                    int selected = cashBox.getSelectedItemPosition();
+                    if (selected <= 0 || selected >= cashBoxIds.size())
+                        throw new IllegalArgumentException("اختر صندوقًا نقديًا أولاً");
+                    database.saveExpense(type, title.getText().toString(),
+                        category.getText().toString(), parseNumber(amount.getText().toString()),
+                        notes.getText().toString(), cashBoxIds.get(selected));
+                    toast("تم حفظ " + type + " وتحديث رصيد الصندوق");
                     navigate("النفقات والإيرادات");
                 } catch (Exception ex) { toast("تعذر الحفظ: " + ex.getMessage()); }
             }).show();
