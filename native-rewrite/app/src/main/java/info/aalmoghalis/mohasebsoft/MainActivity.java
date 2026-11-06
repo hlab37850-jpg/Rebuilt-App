@@ -414,9 +414,14 @@ public final class MainActivity extends Activity {
         page.addView(text("الفواتير", 17, BLUE, true));
         String primaryType = "customers".equals(table) ? "بيع" : "شراء";
         String returnType = "customers".equals(table) ? "مرتجع بيع" : "مرتجع شراء";
+        // Resolve statements by stable party ID. Legacy invoices are included only
+        // when their historical name maps to exactly one party record.
         try (Cursor invoices = database.getReadableDatabase().rawQuery(
-            "SELECT _id, type, created_at, total FROM invoices WHERE party_name=? AND type IN (?,?) ORDER BY _id DESC",
-            new String[]{name, primaryType, returnType})) {
+            "SELECT _id, type, created_at, total FROM invoices WHERE type IN (?,?) AND (" +
+            "(party_table=? AND party_id=?) OR " +
+            "(party_id=0 AND party_table=? AND party_name=? COLLATE NOCASE AND " +
+            "(SELECT COUNT(*) FROM " + table + " WHERE name=? COLLATE NOCASE)=1)) ORDER BY _id DESC",
+            new String[]{primaryType, returnType, table, String.valueOf(id), table, name, name})) {
             while (invoices.moveToNext()) {
                 LinearLayout row = card();
                 row.addView(text("#" + invoices.getLong(0) + " • " + invoices.getString(1), 15, DARK, true));
