@@ -80,6 +80,33 @@ public class DatabaseHelperTest {
         assertEquals(0.0, partyBalance("suppliers", supplierId), 0.0001);
     }
 
+    @Test public void purchaseInvoicesMaintainWeightedAverageInventoryCost() {
+        long supplierId = saveParty("suppliers", "مورد التكلفة");
+        long customerId = saveParty("customers", "عميل التكلفة");
+        long itemId = saveItem("صنف التكلفة", 4, 10, 3);
+
+        helper.saveInvoiceMulti("شراء", "مورد التكلفة",
+            Collections.singletonList(itemId), Collections.singletonList("صنف التكلفة"),
+            Collections.singletonList(3.0), Collections.singletonList(6.0), "شراء بسعر أعلى");
+
+        assertEquals(7.0, itemStock(itemId), 0.0001);
+        assertEquals(30.0, helper.inventoryValue(), 0.0001);
+        try (Cursor item = helper.getReadableDatabase().rawQuery(
+                "SELECT purchase_price FROM items WHERE _id=?", new String[]{String.valueOf(itemId)})) {
+            assertTrue(item.moveToFirst());
+            assertEquals(30.0 / 7.0, item.getDouble(0), 0.0001);
+        }
+
+        helper.saveInvoiceMulti("بيع", "عميل التكلفة",
+            Collections.singletonList(itemId), Collections.singletonList("صنف التكلفة"),
+            Collections.singletonList(2.0), Collections.singletonList(10.0), "بيع");
+
+        assertEquals(5.0, itemStock(itemId), 0.0001);
+        assertEquals((30.0 / 7.0) * 5.0, helper.inventoryValue(), 0.0001);
+        assertEquals(20.0, partyBalance("customers", customerId), 0.0001);
+        assertEquals(18.0, partyBalance("suppliers", supplierId), 0.0001);
+    }
+
     @Test public void migrationLinksOnlyUniqueLegacyPartyNames() {
         context.deleteDatabase("mohaseb_soft.db");
         SQLiteDatabase legacy = context.openOrCreateDatabase("mohaseb_soft.db", Context.MODE_PRIVATE, null);
