@@ -9,7 +9,7 @@ import java.util.List;
 
 public final class DatabaseHelper extends SQLiteOpenHelper {
     private static final String DB_NAME = "mohaseb_soft.db";
-    private static final int DB_VERSION = 5;
+    private static final int DB_VERSION = 6;
 
     public DatabaseHelper(Context context) {
         super(context, DB_NAME, null, DB_VERSION);
@@ -49,6 +49,30 @@ public final class DatabaseHelper extends SQLiteOpenHelper {
         ensureColumn(db, "invoices", "tax_amount", "REAL NOT NULL DEFAULT 0");
         ensureColumn(db, "invoices", "currency_name", "TEXT NOT NULL DEFAULT 'محلي'");
         ensureColumn(db, "invoices", "exchange_rate", "REAL NOT NULL DEFAULT 1");
+        backfillInvoicePartyLinks(db);
+    }
+
+    /**
+     * Attach historical invoices to a party only when the name resolves to exactly
+     * one record. Ambiguous legacy names remain unlinked rather than being assigned
+     * to the wrong customer or supplier.
+     */
+    private void backfillInvoicePartyLinks(SQLiteDatabase db) {
+        db.execSQL("UPDATE invoices SET party_table = CASE " +
+            "WHEN type IN ('بيع', 'مرتجع بيع') THEN 'customers' ELSE 'suppliers' END " +
+            "WHERE party_table IS NULL OR party_table = ''");
+        db.execSQL("UPDATE invoices SET party_id = (" +
+            "SELECT MIN(c._id) FROM customers c " +
+            "WHERE c.name = invoices.party_name COLLATE NOCASE) " +
+            "WHERE party_table='customers' AND party_id=0 AND " +
+            "(SELECT COUNT(*) FROM customers c " +
+            "WHERE c.name = invoices.party_name COLLATE NOCASE)=1");
+        db.execSQL("UPDATE invoices SET party_id = (" +
+            "SELECT MIN(s._id) FROM suppliers s " +
+            "WHERE s.name = invoices.party_name COLLATE NOCASE) " +
+            "WHERE party_table='suppliers' AND party_id=0 AND " +
+            "(SELECT COUNT(*) FROM suppliers s " +
+            "WHERE s.name = invoices.party_name COLLATE NOCASE)=1");
     }
 
     private void ensureColumn(SQLiteDatabase db, String table, String column, String definition) {
