@@ -391,6 +391,36 @@ public class DatabaseHelperTest {
         try{helper.setAccountMapping("cash",group);}catch(IllegalArgumentException e){a=true;}try{helper.setAccountMapping("cash",inactive);}catch(IllegalArgumentException e){b=true;}assertTrue(a);assertTrue(b);
     }
 
+    @Test public void appPinUsesSaltedHashAndCanBeChangedOrCleared() {
+        assertTrue(!helper.hasAppPin());
+        helper.setAppPin("4826");
+        assertTrue(helper.hasAppPin());
+        assertTrue(helper.verifyAppPin("4826"));
+        assertTrue(!helper.verifyAppPin("4827"));
+        boolean rejected=false;
+        try { helper.setAppPin("123"); } catch (IllegalArgumentException expected) { rejected=true; }
+        assertTrue(rejected);
+        helper.setAppPin("93715");
+        assertTrue(!helper.verifyAppPin("4826"));
+        assertTrue(helper.verifyAppPin("93715"));
+        assertTrue(!helper.clearAppPin("0000"));
+        assertTrue(helper.clearAppPin("93715"));
+        assertTrue(!helper.hasAppPin());
+    }
+
+    @Test public void auditLogRecordsCrudAndSecurityEvents() {
+        helper.setAppPin("2468");
+        ContentValues v=new ContentValues();v.put("name","سجل تدقيق");v.put("opening_balance",0);
+        long id=helper.saveEntity("customers",0,v);
+        helper.saveEntity("customers",id,v);
+        helper.delete("customers",id);
+        try(Cursor c=helper.auditLog(20)){
+            assertTrue(c.getCount() >= 4);
+            assertTrue(c.moveToFirst());
+            assertEquals("حذف",c.getString(1));
+        }
+    }
+
     private long saveParty(String table, String name) {
         ContentValues values = new ContentValues();
         values.put("name", name);

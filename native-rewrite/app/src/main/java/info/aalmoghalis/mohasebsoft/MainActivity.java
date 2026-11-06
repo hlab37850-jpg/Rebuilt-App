@@ -32,6 +32,7 @@ import android.widget.PopupWindow;
 import android.widget.Spinner;
 import android.widget.TextView;
 import android.widget.Toast;
+import android.text.InputType;
 
 import java.io.OutputStream;
 import java.io.InputStream;
@@ -59,6 +60,12 @@ public final class MainActivity extends Activity {
     @Override public void onCreate(Bundle state) {
         super.onCreate(state);
         database = new DatabaseHelper(this);
+        if (database.hasAppPin()) requestPinUnlock();
+        else launchApplication();
+    }
+
+    private void launchApplication() {
+        modules.clear();
         modules.add("الرئيسية");
         modules.add("العملاء");
         modules.add("الموردون");
@@ -83,6 +90,19 @@ public final class MainActivity extends Activity {
         modules.add("الإعدادات");
         buildShell();
         showHome();
+    }
+
+    private void requestPinUnlock() {
+        EditText pin = new EditText(this);
+        pin.setInputType(InputType.TYPE_CLASS_NUMBER | InputType.TYPE_NUMBER_VARIATION_PASSWORD);
+        pin.setHint("رمز القفل");
+        new AlertDialog.Builder(this).setTitle("محاسب بيه - قفل التطبيق")
+            .setMessage("أدخل رمز القفل للمتابعة")
+            .setView(pin).setCancelable(false)
+            .setPositiveButton("فتح", (dialog, which) -> {
+                if (database.verifyAppPin(pin.getText().toString())) launchApplication();
+                else { toast("رمز القفل غير صحيح"); requestPinUnlock(); }
+            }).setNegativeButton("خروج", (dialog, which) -> finish()).show();
     }
 
     private void buildShell() {
@@ -1210,6 +1230,52 @@ public final class MainActivity extends Activity {
         page.addView(text("العمليات السابقة لا تُرحّل تلقائيًا. يبدأ الترحيل للعمليات الجديدة عند اكتمال ربط الحسابات المطلوبة. اضبط تصنيف الحسابات في الدليل بدقة.",12,Color.GRAY,false));
     }
 
+    private void showSecuritySettings() {
+        LinearLayout content = new LinearLayout(this);
+        content.setOrientation(LinearLayout.VERTICAL);
+        content.setPadding(dp(18), dp(12), dp(18), dp(4));
+        content.addView(text(database.hasAppPin() ? "قفل التطبيق مفعل. سيُطلب الرمز عند فتح التطبيق." : "قفل التطبيق غير مفعل.", 14, DARK, true));
+        Button set = button(database.hasAppPin() ? "تغيير رمز القفل" : "تفعيل قفل برمز", BLUE, Color.WHITE);
+        content.addView(set, matchWrap());
+        set.setOnClickListener(v -> {
+            EditText pin = new EditText(this);
+            pin.setInputType(InputType.TYPE_CLASS_NUMBER | InputType.TYPE_NUMBER_VARIATION_PASSWORD);
+            pin.setHint("رمز جديد من 4 إلى 8 أرقام");
+            new AlertDialog.Builder(this).setTitle("إعداد رمز القفل").setView(pin)
+                .setNegativeButton("إلغاء", null).setPositiveButton("حفظ", (d,w) -> {
+                    try { database.setAppPin(pin.getText().toString()); toast("تم تفعيل قفل التطبيق"); showSecuritySettings(); }
+                    catch (Exception ex) { toast(ex.getMessage()); }
+                }).show();
+        });
+        if (database.hasAppPin()) {
+            Button disable = button("تعطيل قفل التطبيق", Color.WHITE, DARK);
+            content.addView(disable, matchWrap());
+            disable.setOnClickListener(v -> {
+                EditText pin = new EditText(this);
+                pin.setInputType(InputType.TYPE_CLASS_NUMBER | InputType.TYPE_NUMBER_VARIATION_PASSWORD);
+                pin.setHint("الرمز الحالي");
+                new AlertDialog.Builder(this).setTitle("تأكيد تعطيل القفل").setView(pin)
+                    .setNegativeButton("إلغاء", null).setPositiveButton("تعطيل", (d,w) -> {
+                        if (database.clearAppPin(pin.getText().toString())) { toast("تم تعطيل القفل"); showSecuritySettings(); }
+                        else toast("الرمز الحالي غير صحيح");
+                    }).show();
+            });
+        }
+        new AlertDialog.Builder(this).setTitle("الحماية").setView(content).setPositiveButton("إغلاق", null).show();
+    }
+
+    private void showAuditLog() {
+        StringBuilder report = new StringBuilder();
+        try (Cursor c = database.auditLog(100)) {
+            while (c.moveToNext()) report.append(c.getString(4)).append(" • ")
+                .append(c.getString(1)).append(" • ").append(c.getString(2))
+                .append(" #").append(c.getLong(3)).append("\\n");
+        }
+        if (report.length() == 0) report.append("لا توجد أحداث مسجلة بعد.");
+        new AlertDialog.Builder(this).setTitle("سجل التدقيق - آخر 100 حدث")
+            .setMessage(report.toString()).setPositiveButton("إغلاق", null).show();
+    }
+
     private void showSettings() {
         page.removeAllViews();
         addHeading("الإعدادات", "إدارة بيانات التطبيق");
@@ -1219,6 +1285,12 @@ public final class MainActivity extends Activity {
         page.addView(card);
         Button mappings = button("ربط الحسابات بالقيود الآلية", Color.WHITE, DARK);
         page.addView(mappings, matchWrap());mappings.setOnClickListener(v -> showAccountMappings());
+        Button security = button("قفل التطبيق وسجل التدقيق", Color.WHITE, DARK);
+        page.addView(security, matchWrap());
+        security.setOnClickListener(v -> showSecuritySettings());
+        Button audit = button("عرض سجل التدقيق", Color.WHITE, DARK);
+        page.addView(audit, matchWrap());
+        audit.setOnClickListener(v -> showAuditLog());
         Button backup = button("حفظ نسخة احتياطية من قاعدة البيانات", BLUE, Color.WHITE);
         page.addView(backup, matchWrap());
         backup.setOnClickListener(v -> {
@@ -1260,10 +1332,12 @@ public final class MainActivity extends Activity {
         if (resultCode != RESULT_OK || data == null || data.getData() == null) return;
         if (requestCode == 42) {
             File source = getDatabasePath("mohaseb_soft.db");
+            try { database.checkpoint(); } catch (Exception ex) { toast("تعذر تجهيز قاعدة البيانات: " + ex.getMessage()); return; }
             try (InputStream in = new FileInputStream(source);
                  OutputStream out = getContentResolver().openOutputStream(data.getData())) {
                 if (out == null) throw new IllegalStateException("تعذر فتح ملف النسخة الاحتياطية");
                 copy(in, out);
+                database.recordAudit("إنشاء نسخة احتياطية", "database", 0);
                 toast("تم حفظ النسخة الاحتياطية");
             } catch (Exception ex) { toast("فشل حفظ النسخة: " + ex.getMessage()); }
             return;
@@ -1275,17 +1349,32 @@ public final class MainActivity extends Activity {
                 if (in == null) throw new IllegalStateException("تعذر قراءة ملف النسخة");
                 copy(in, out);
                 try (SQLiteDatabase check = SQLiteDatabase.openDatabase(temp.getAbsolutePath(), null, SQLiteDatabase.OPEN_READONLY)) {
-                    try (Cursor c = check.rawQuery("SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name IN ('items','invoices','customers')", null)) {
-                        if (!c.moveToFirst() || c.getInt(0) < 3) throw new IllegalArgumentException("ملف النسخة ليس قاعدة بيانات متوافقة");
+                    try (Cursor integrity = check.rawQuery("PRAGMA integrity_check", null)) {
+                        if (!integrity.moveToFirst() || !"ok".equalsIgnoreCase(integrity.getString(0)))
+                            throw new IllegalArgumentException("قاعدة النسخة تالفة أو غير مكتملة");
+                    }
+                    try (Cursor version = check.rawQuery("PRAGMA user_version", null)) {
+                        if (!version.moveToFirst() || version.getInt(0) > 12)
+                            throw new IllegalArgumentException("نسخة قاعدة البيانات أحدث من إصدار التطبيق");
+                    }
+                    try (Cursor c = check.rawQuery("SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name IN ('items','invoices','customers','suppliers')", null)) {
+                        if (!c.moveToFirst() || c.getInt(0) < 4) throw new IllegalArgumentException("ملف النسخة ليس قاعدة بيانات متوافقة");
                     }
                 }
+                database.checkpoint();
                 database.close();
                 File target = getDatabasePath("mohaseb_soft.db");
+                File previous = new File(getFilesDir(), "mohaseb-soft-before-restore.db");
+                if (previous.exists() && !previous.delete()) throw new IllegalStateException("تعذر تجهيز الاستعادة الآمنة");
+                if (target.exists() && !target.renameTo(previous)) throw new IllegalStateException("تعذر حفظ قاعدة البيانات الحالية");
                 if (!temp.renameTo(target)) {
-                    try (InputStream in2 = new FileInputStream(temp); OutputStream out2 = new FileOutputStream(target)) { copy(in2, out2); }
-                    temp.delete();
+                    if (previous.exists()) previous.renameTo(target);
+                    throw new IllegalStateException("تعذر استبدال قاعدة البيانات");
                 }
+                if (previous.exists()) previous.delete();
                 database = new DatabaseHelper(this);
+                database.getWritableDatabase();
+                database.recordAudit("استعادة نسخة احتياطية", "database", 0);
                 toast("تمت استعادة قاعدة البيانات");
                 navigate("الرئيسية");
             } catch (Exception ex) { toast("فشلت الاستعادة: " + ex.getMessage()); }
@@ -1381,6 +1470,7 @@ public final class MainActivity extends Activity {
                     imported++;
                 } catch (Exception ex) { skipped++; }
             }
+            database.recordAudit("استيراد CSV: " + imported + " ناجح / " + skipped + " متجاوز", importTarget, imported);
             toast("اكتمل الاستيراد: " + imported + " سجل، وتم تجاوز " + skipped + " سجل.");
             navigate("الإعدادات");
         } catch (Exception ex) { toast("تعذر استيراد الملف: " + ex.getMessage()); }

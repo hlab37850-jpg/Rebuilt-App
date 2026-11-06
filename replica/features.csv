@@ -36,14 +36,14 @@ Account statement PDF/print,Output,should,yes,no,Full statement export missing
 Invoice print/share,Output,should,yes,partial,A4 print/text share; verify PDF/thermal
 Thermal printer,Output,should,yes,no,Not implemented
 Excel import with preview,Data,must,yes,no,CSV only in rewrite
-CSV import/export,Data,must,yes,partial,Parser and mapping need tests
+CSV import/export,Data,must,yes,partial,CSV import/export is available; per-row invalid records are skipped and import summary is audited; multiline quoted fields and Excel/PDF preview remain unsupported
 PDF import/preview,Data,could,yes,no,Not implemented
-Local backup/restore,Data,must,yes,partial,Integrity and atomic restore need tests
+Local backup/restore,Data,must,yes,partial,Backup checkpoints SQLite; restore validates integrity/schema/version and uses a rollback file before replacement
 Google Drive backup,Data,should,yes,no,Help guide documents it; rewrite has no integration
 Live multi-device sync,Data,should,partial,no,Backup is not live sync
-Login/app lock,Security,should,yes,no,Not implemented
-Users and permissions,Security,should,yes,no,Published version history mentions this
-Audit log,Security,must,yes,no,Not implemented
+Login/app lock,Security,should,yes,partial,Optional 4-8 digit salted SHA-256 app PIN is required on launch; this is an app-level lock, not OS/device encryption
+Users and permissions,Security,should,yes,partial,Single-owner PIN lock only; multi-user roles and per-module permissions remain unimplemented
+Audit log,Security,must,yes,partial,Records entity add/edit/delete and backup/restore/import/security events; full financial event coverage and audit export remain
 Reminders/notifications,Operations,could,yes,no,Not implemented
 ZATCA e-invoicing,Compliance,should,yes,no,Published version history mentions integration
 Monthly close/period lock,Accounting,should,no,no,Review-request opportunity, not confirmed as original

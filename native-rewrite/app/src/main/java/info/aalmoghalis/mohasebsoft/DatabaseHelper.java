@@ -6,10 +6,14 @@ import android.database.Cursor;
 import android.database.sqlite.SQLiteDatabase;
 import android.database.sqlite.SQLiteOpenHelper;
 import java.util.List;
+import java.security.MessageDigest;
+import java.security.SecureRandom;
+import java.security.NoSuchAlgorithmException;
+import java.util.Arrays;
 
 public final class DatabaseHelper extends SQLiteOpenHelper {
     private static final String DB_NAME = "mohaseb_soft.db";
-    private static final int DB_VERSION = 11;
+    private static final int DB_VERSION = 12;
 
     public DatabaseHelper(Context context) {
         super(context, DB_NAME, null, DB_VERSION);
@@ -39,6 +43,8 @@ public final class DatabaseHelper extends SQLiteOpenHelper {
         db.execSQL("CREATE TABLE IF NOT EXISTS journal_lines (_id INTEGER PRIMARY KEY AUTOINCREMENT, entry_id INTEGER NOT NULL, account_id INTEGER NOT NULL, account_name TEXT NOT NULL, debit REAL NOT NULL DEFAULT 0, credit REAL NOT NULL DEFAULT 0, line_no INTEGER NOT NULL, FOREIGN KEY(entry_id) REFERENCES journal_entries(_id), FOREIGN KEY(account_id) REFERENCES accounts(_id))");
         db.execSQL("CREATE UNIQUE INDEX IF NOT EXISTS idx_journal_source ON journal_entries(source_type, source_id) WHERE source_id > 0");
         db.execSQL("CREATE TABLE IF NOT EXISTS account_mappings (mapping_key TEXT PRIMARY KEY, account_id INTEGER NOT NULL, FOREIGN KEY(account_id) REFERENCES accounts(_id))");
+        db.execSQL("CREATE TABLE IF NOT EXISTS app_security (_id INTEGER PRIMARY KEY CHECK(_id=1), pin_salt TEXT NOT NULL, pin_hash TEXT NOT NULL, updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP)");
+        db.execSQL("CREATE TABLE IF NOT EXISTS audit_log (_id INTEGER PRIMARY KEY AUTOINCREMENT, action TEXT NOT NULL, entity TEXT NOT NULL, entity_id INTEGER NOT NULL DEFAULT 0, created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP)");
     }
 
     @Override public void onUpgrade(SQLiteDatabase db, int oldVersion, int newVersion) {
@@ -67,6 +73,8 @@ public final class DatabaseHelper extends SQLiteOpenHelper {
         db.execSQL("CREATE TABLE IF NOT EXISTS journal_lines (_id INTEGER PRIMARY KEY AUTOINCREMENT, entry_id INTEGER NOT NULL, account_id INTEGER NOT NULL, account_name TEXT NOT NULL, debit REAL NOT NULL DEFAULT 0, credit REAL NOT NULL DEFAULT 0, line_no INTEGER NOT NULL, FOREIGN KEY(entry_id) REFERENCES journal_entries(_id), FOREIGN KEY(account_id) REFERENCES accounts(_id))");
         db.execSQL("CREATE UNIQUE INDEX IF NOT EXISTS idx_journal_source ON journal_entries(source_type, source_id) WHERE source_id > 0");
         db.execSQL("CREATE TABLE IF NOT EXISTS account_mappings (mapping_key TEXT PRIMARY KEY, account_id INTEGER NOT NULL, FOREIGN KEY(account_id) REFERENCES accounts(_id))");
+        db.execSQL("CREATE TABLE IF NOT EXISTS app_security (_id INTEGER PRIMARY KEY CHECK(_id=1), pin_salt TEXT NOT NULL, pin_hash TEXT NOT NULL, updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP)");
+        db.execSQL("CREATE TABLE IF NOT EXISTS audit_log (_id INTEGER PRIMARY KEY AUTOINCREMENT, action TEXT NOT NULL, entity TEXT NOT NULL, entity_id INTEGER NOT NULL DEFAULT 0, created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP)");
         backfillInvoicePartyLinks(db);
     }
 
@@ -91,6 +99,83 @@ public final class DatabaseHelper extends SQLiteOpenHelper {
             "WHERE party_table='suppliers' AND party_id=0 AND " +
             "(SELECT COUNT(*) FROM suppliers s " +
             "WHERE s.name = invoices.party_name COLLATE NOCASE)=1");
+    }
+
+    public boolean hasAppPin() {
+        try (Cursor c = getReadableDatabase().rawQuery("SELECT 1 FROM app_security WHERE _id=1", null)) {
+            return c.moveToFirst();
+        }
+    }
+
+    public void setAppPin(String pin) {
+        if (pin == null || !pin.matches("[0-9]{4,8}")) throw new IllegalArgumentException("رمز القفل يجب أن يتكون من 4 إلى 8 أرقام");
+        byte[] salt = new byte[16];
+        new SecureRandom().nextBytes(salt);
+        String saltHex = toHex(salt);
+        ContentValues values = new ContentValues();
+        values.put("_id", 1);
+        values.put("pin_salt", saltHex);
+        values.put("pin_hash", pinHash(pin, saltHex));
+        values.put("updated_at", "CURRENT_TIMESTAMP");
+        SQLiteDatabase db = getWritableDatabase();
+        db.insertWithOnConflict("app_security", null, values, SQLiteDatabase.CONFLICT_REPLACE);
+        recordAudit("تفعيل/تغيير قفل التطبيق", "app_security", 1);
+    }
+
+    public boolean verifyAppPin(String pin) {
+        try (Cursor c = getReadableDatabase().rawQuery("SELECT pin_salt,pin_hash FROM app_security WHERE _id=1", null)) {
+            if (!c.moveToFirst() || pin == null) return false;
+            byte[] expected = fromHex(c.getString(1));
+            byte[] actual = fromHex(pinHash(pin, c.getString(0)));
+            return MessageDigest.isEqual(expected, actual);
+        }
+    }
+
+    public boolean clearAppPin(String currentPin) {
+        if (!verifyAppPin(currentPin)) return false;
+        getWritableDatabase().delete("app_security", "_id=1", null);
+        recordAudit("تعطيل قفل التطبيق", "app_security", 1);
+        return true;
+    }
+
+    private String pinHash(String pin, String saltHex) {
+        try {
+            MessageDigest digest = MessageDigest.getInstance("SHA-256");
+            digest.update(fromHex(saltHex));
+            return toHex(digest.digest(pin.getBytes(java.nio.charset.StandardCharsets.UTF_8)));
+        } catch (NoSuchAlgorithmException ex) { throw new IllegalStateException(ex); }
+    }
+
+    private String toHex(byte[] bytes) {
+        StringBuilder out = new StringBuilder();
+        for (byte b : bytes) out.append(String.format(java.util.Locale.US, "%02x", b & 0xff));
+        return out.toString();
+    }
+
+    private byte[] fromHex(String value) {
+        if (value == null || (value.length() & 1) != 0) return new byte[0];
+        byte[] out = new byte[value.length() / 2];
+        for (int i=0;i<out.length;i++) out[i]=(byte)Integer.parseInt(value.substring(i*2,i*2+2),16);
+        return out;
+    }
+
+    public void recordAudit(String action, String entity, long entityId) {
+        ContentValues values = new ContentValues();
+        values.put("action", action);
+        values.put("entity", entity);
+        values.put("entity_id", entityId);
+        getWritableDatabase().insert("audit_log", null, values);
+    }
+
+    public Cursor auditLog(int limit) {
+        int safeLimit = Math.max(1, Math.min(limit, 500));
+        return getReadableDatabase().rawQuery("SELECT _id,action,entity,entity_id,created_at FROM audit_log ORDER BY _id DESC LIMIT " + safeLimit, null);
+    }
+
+    public void checkpoint() {
+        try (Cursor ignored = getWritableDatabase().rawQuery("PRAGMA wal_checkpoint(FULL)", null)) {
+            if (ignored.moveToFirst() && ignored.getInt(0) != 0) throw new IllegalStateException("تعذر إكمال حفظ قاعدة البيانات");
+        }
     }
 
     private void ensureColumn(SQLiteDatabase db, String table, String column, String definition) {
@@ -171,8 +256,13 @@ public final class DatabaseHelper extends SQLiteOpenHelper {
             if (group == 0 && id > 0 && scalarCount(db,"SELECT COUNT(*) FROM accounts WHERE parent_account_id=?",new String[]{String.valueOf(id)})>0)
                 throw new IllegalArgumentException("الحساب الرئيسي لديه فروع");
         }
-        if (id > 0) return db.update(table, values, "_id=?", new String[]{String.valueOf(id)});
+        if (id > 0) {
+            int changed = db.update(table, values, "_id=?", new String[]{String.valueOf(id)});
+            if (changed > 0) recordAudit("تعديل", table, id);
+            return changed;
+        }
         long newId = db.insertOrThrow(table, null, values);
+        recordAudit("إضافة", table, newId);
         if ("customers".equals(table) || "suppliers".equals(table)) {
             double opening = values.getAsDouble("opening_balance") == null ? 0 : values.getAsDouble("opening_balance");
             ContentValues current = new ContentValues();
@@ -234,6 +324,7 @@ public final class DatabaseHelper extends SQLiteOpenHelper {
                     " حركة أو مستند مرتبط به. احتفظ بالسجل أو عالج المستندات المرتبطة أولاً.");
             }
             int deleted = db.delete(table, "_id=?", new String[]{String.valueOf(id)});
+            if (deleted > 0) recordAudit("حذف", table, id);
             db.setTransactionSuccessful();
             return deleted;
         } finally {
