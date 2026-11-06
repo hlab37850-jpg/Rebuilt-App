@@ -1245,14 +1245,16 @@ public final class MainActivity extends Activity {
         Button set = button(database.hasAppPin() ? "تغيير رمز القفل" : "تفعيل قفل برمز", BLUE, Color.WHITE);
         content.addView(set, matchWrap());
         set.setOnClickListener(v -> {
-            EditText pin = new EditText(this);
-            pin.setInputType(InputType.TYPE_CLASS_NUMBER | InputType.TYPE_NUMBER_VARIATION_PASSWORD);
-            pin.setHint("رمز جديد من 4 إلى 8 أرقام");
-            new AlertDialog.Builder(this).setTitle("إعداد رمز القفل").setView(pin)
-                .setNegativeButton("إلغاء", null).setPositiveButton("حفظ", (d,w) -> {
-                    try { database.setAppPin(pin.getText().toString()); toast("تم تفعيل قفل التطبيق"); showSecuritySettings(); }
-                    catch (Exception ex) { toast(ex.getMessage()); }
-                }).show();
+            if (database.hasAppPin()) {
+                EditText current = new EditText(this);
+                current.setInputType(InputType.TYPE_CLASS_NUMBER | InputType.TYPE_NUMBER_VARIATION_PASSWORD);
+                current.setHint("الرمز الحالي");
+                new AlertDialog.Builder(this).setTitle("التحقق من الرمز الحالي").setView(current)
+                    .setNegativeButton("إلغاء", null).setPositiveButton("متابعة", (d,w) -> {
+                        if (!database.verifyAppPin(current.getText().toString())) { toast("الرمز الحالي غير صحيح"); return; }
+                        promptNewAppPin(current.getText().toString());
+                    }).show();
+            } else promptNewAppPin(null);
         });
         if (database.hasAppPin()) {
             Button disable = button("تعطيل قفل التطبيق", Color.WHITE, DARK);
@@ -1269,6 +1271,20 @@ public final class MainActivity extends Activity {
             });
         }
         new AlertDialog.Builder(this).setTitle("الحماية").setView(content).setPositiveButton("إغلاق", null).show();
+    }
+
+    private void promptNewAppPin(String currentPin) {
+        EditText pin = new EditText(this);
+        pin.setInputType(InputType.TYPE_CLASS_NUMBER | InputType.TYPE_NUMBER_VARIATION_PASSWORD);
+        pin.setHint("رمز جديد من 4 إلى 8 أرقام");
+        new AlertDialog.Builder(this).setTitle("إعداد رمز القفل").setView(pin)
+            .setNegativeButton("إلغاء", null).setPositiveButton("حفظ", (d,w) -> {
+                try {
+                    if (currentPin == null) database.setAppPin(pin.getText().toString());
+                    else if (!database.updateAppPin(currentPin, pin.getText().toString())) { toast("تعذر التحقق من الرمز الحالي"); return; }
+                    toast("تم حفظ رمز القفل"); showSecuritySettings();
+                } catch (Exception ex) { toast(ex.getMessage()); }
+            }).show();
     }
 
     private void showAuditLog() {

@@ -108,6 +108,17 @@ public final class DatabaseHelper extends SQLiteOpenHelper {
     }
 
     public void setAppPin(String pin) {
+        if (hasAppPin()) throw new IllegalStateException("أدخل الرمز الحالي قبل تغييره");
+        saveAppPin(pin);
+    }
+
+    public boolean updateAppPin(String currentPin, String newPin) {
+        if (!verifyAppPin(currentPin)) return false;
+        saveAppPin(newPin);
+        return true;
+    }
+
+    private void saveAppPin(String pin) {
         if (pin == null || !pin.matches("[0-9]{4,8}")) throw new IllegalArgumentException("رمز القفل يجب أن يتكون من 4 إلى 8 أرقام");
         byte[] salt = new byte[16];
         new SecureRandom().nextBytes(salt);

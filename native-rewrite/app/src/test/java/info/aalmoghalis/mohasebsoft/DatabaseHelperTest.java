@@ -401,7 +401,11 @@ public class DatabaseHelperTest {
         boolean rejected=false;
         try { helper.setAppPin("123"); } catch (IllegalArgumentException expected) { rejected=true; }
         assertTrue(rejected);
-        helper.setAppPin("93715");
+        boolean overwriteBlocked=false;
+        try { helper.setAppPin("93715"); } catch (IllegalStateException expected) { overwriteBlocked=true; }
+        assertTrue(overwriteBlocked);
+        assertTrue(!helper.updateAppPin("0000", "93715"));
+        assertTrue(helper.updateAppPin("4826", "93715"));
         assertTrue(!helper.verifyAppPin("4826"));
         assertTrue(helper.verifyAppPin("93715"));
         assertTrue(!helper.clearAppPin("0000"));
