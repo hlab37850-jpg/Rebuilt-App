@@ -1,0 +1,26 @@
+{
+  "working_name": "محاسب بيه",
+  "avoid": ["محاسب سوفت", "EasySoft", "info.aalmoghalis.inventory"],
+  "domains": [],
+  "colors": ["#335AB8", "#0A6EA9"],
+  "palette": {
+    "primary": "#087F70",
+    "background": "#F3F6FC",
+    "surface": "#FFFFFF",
+    "text": "#202A41",
+    "text_muted": "#687386",
+    "danger": "#B42318",
+    "success": "#16794B"
+  },
+  "checks": {
+    "trademark_us": "to run",
+    "trademark_eu": "to run",
+    "trademark_wipo": "to run",
+    "domain": "to run",
+    "app_store": "to run",
+    "play_store": "to run",
+    "social_handles": "to run",
+    "web_search": "to run"
+  },
+  "status": "draft_only_not_legal_clearance"
+}
