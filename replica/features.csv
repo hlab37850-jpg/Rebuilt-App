@@ -16,7 +16,7 @@ Sales and purchase returns,Sales,must,yes,partial,Need linked-original and rever
 Offers and sales orders,Sales,should,yes,no,Not implemented
 Purchase orders,Purchases,should,yes,no,Not implemented
 Invoice edit/cancel,Sales,must,yes,no,No edit lifecycle
-Stock balance and costing,Inventory,must,yes,partial,Current valuation uses sale price; historical cost missing
+Stock balance and costing,Inventory,must,yes,partial,Moving weighted-average purchase cost now updates on purchase invoices; warehouse-level costing and historical cost layers remain
 Stock adjustment/movements,Inventory,must,yes,partial,No complete reason/warehouse ledger
 Multiple warehouses/transfers,Inventory,should,yes,partial,Warehouse CRUD but no per-warehouse stock
 Categories/units/item types,Master data,should,yes,partial,Some CRUD; links incomplete
