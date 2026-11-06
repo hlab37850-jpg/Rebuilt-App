@@ -963,7 +963,7 @@ public final class MainActivity extends Activity {
         addMetric("إجمالي قيمة الفواتير", database.sum("invoices", "total"), "invoices");
         addMetric("إجمالي المصروفات", database.sumExpenses("مصروف"), "transactions");
         addMetric("إجمالي الإيرادات", database.sumExpenses("إيراد"), "transactions");
-        addMetric("قيمة المخزون بسعر البيع", database.inventoryValue(), "items");
+        addMetric("قيمة المخزون بمتوسط التكلفة", database.inventoryValue(), "items");
         TextView section = text("التقارير التفصيلية", 17, DARK, true);
         section.setPadding(0, dp(16), 0, dp(8));
         page.addView(section);
@@ -1013,7 +1013,7 @@ public final class MainActivity extends Activity {
 
     private void showItemProfitReport() {
         page.removeAllViews();
-        addHeading("أرباح الأصناف (تقديري)", "فرق سعر البيع والشراء الحالي مضروبًا في المخزون الحالي");
+        addHeading("أرباح الأصناف (تقديري)", "فرق سعر البيع ومتوسط تكلفة الشراء مضروبًا في المخزون الحالي");
         try (Cursor c = database.getReadableDatabase().rawQuery(
             "SELECT name, stock, purchase_price, sale_price, (sale_price-purchase_price)*stock AS estimate FROM items ORDER BY name COLLATE NOCASE", null)) {
             while (c.moveToNext()) {
